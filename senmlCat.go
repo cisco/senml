@@ -8,6 +8,7 @@ import (
 	"flag"
 	"os"
 	"io/ioutil"
+	"time"
 )
 
 // TODO
@@ -54,6 +55,8 @@ func main() {
 	var err error;
 
 	doIndentPtr := flag.Bool("i", false, "indent output")
+	doTimePtr := flag.Bool("time", false, "time parsing of input")
+	doSizePtr := flag.Bool("size", false, "report size of output")
 	
 	doJsonPtr := flag.Bool("json", false, "output JSON formatted SENML ")
 	doCborPtr := flag.Bool("cbor", false, "output CBOR formatted SENML ")
@@ -78,101 +81,123 @@ func main() {
 	var s SenML
 	s.XMLName = nil
 	s.Xmlns = "urn:ietf:params:xml:ns:senml"
-	
-	// parse the input JSON
-	if ( *doIJsonPtr ) {
-		err = json.Unmarshal(msg, &s.Records )
-		if err != nil {
-			fmt.Printf("error parsing JSON SenML %v\n",err)
-			os.Exit( 1 )
-		}
+
+	startParseTime1 := time.Now();
+	endParseTime1 := time.Now();
+	var loops int = 0
+	if ( *doTimePtr ) {
+		loops = 1000
 	}
-	
-	// parse the input XML
-	if ( *doIXmlPtr ) {
-		err = xml.Unmarshal(msg, &s)
-		if err != nil {
-			fmt.Printf("error parsing XML SenML %v\n",err)
-			os.Exit( 1 )
+	for i := -1; i < loops; i++ {
+		if i == 0 {
+			startParseTime1 = time.Now();
 		}
+		
+		// parse the input JSON
+		if ( *doIJsonPtr ) {
+			err = json.Unmarshal(msg, &s.Records )
+			if err != nil {
+				fmt.Printf("error parsing JSON SenML %v\n",err)
+				os.Exit( 1 )
+			}
+		}
+		
+		// parse the input XML
+		if ( *doIXmlPtr ) {
+			err = xml.Unmarshal(msg, &s)
+			if err != nil {
+				fmt.Printf("error parsing XML SenML %v\n",err)
+				os.Exit( 1 )
+			}
+		}
+		
+		// parse the input CBOR
+		if ( *doICborPtr ) {
+			var cborHandle codec.Handle = new( codec.CborHandle )
+			var decoder *codec.Decoder = codec.NewDecoderBytes( msg, cborHandle )
+			err = decoder.Decode( &s.Records )
+			if err != nil {
+				fmt.Printf("error parsing CBOR SenML %v\n",err)
+				os.Exit( 1 )
+			}
+		}
+		
+		// parse the input MPACK
+		// spec for MessagePack is at https://github.com/msgpack/msgpack/
+		if ( *doIMpackPtr ) {
+			var mpackHandle codec.Handle = new( codec.MsgpackHandle )
+			var decoder *codec.Decoder = codec.NewDecoderBytes( msg, mpackHandle )
+			err = decoder.Decode( &s.Records )
+			if err != nil {
+				fmt.Printf("error parsing MPACK SenML %v\n",err)
+				os.Exit( 1 )
+			}
+		}
+		
+	}
+	endParseTime1 = time.Now()
+
+	if ( *doTimePtr ) {
+		parseTime1 := endParseTime1.Sub( startParseTime1 )
+		fmt.Printf("Parse time %v us or %v msg/s \n",
+			float64( parseTime1.Nanoseconds() ) / ( float64( loops )  * 1.0e3 ),
+			int64( 1.0e9 * float64( loops )  / float64( parseTime1.Nanoseconds() ) ) )
 	}
 
-	// parse the input CBOR
-	if ( *doICborPtr ) {
-		var cborHandle codec.Handle = new( codec.CborHandle )
-		var decoder *codec.Decoder = codec.NewDecoderBytes( msg, cborHandle )
-		err = decoder.Decode( &s.Records )
-			if err != nil {
-			fmt.Printf("error parsing CBOR SenML %v\n",err)
-			os.Exit( 1 )
-		}
-	}
+	var data []byte;
 
-	// parse the input MPACK
-	// spec for MessagePack is at https://github.com/msgpack/msgpack/
-	if ( *doIMpackPtr ) {
-		var mpackHandle codec.Handle = new( codec.MsgpackHandle )
-		var decoder *codec.Decoder = codec.NewDecoderBytes( msg, mpackHandle )
-		err = decoder.Decode( &s.Records )
-			if err != nil {
-			fmt.Printf("error parsing MPACK SenML %v\n",err)
-			os.Exit( 1 )
-		}
-	}
-	
 	// ouput JSON version 
 	if ( *doJsonPtr ) {
-		var d []byte;
 		if ( *doIndentPtr ) {
-			d,err = json.MarshalIndent( s.Records, "", "  " )
+			data, err = json.MarshalIndent( s.Records, "", "  " )
 		} else {
-			d,err = json.Marshal( s.Records )
+			data, err = json.Marshal( s.Records )
 		}
 		if err != nil {
 			fmt.Printf("error encoding JSON SenML %v\n",err)
 			os.Exit( 1 )
 		}
-		fmt.Printf("%s\n", d)
 	}
 
 	// output a XML version 
 	if ( *doXmlPtr ) {
-		var d []byte;
 		if ( *doIndentPtr ) {
-			d,err = xml.MarshalIndent( s, "", "  " )
+			data, err = xml.MarshalIndent( s, "", "  " )
 		} else {
-			d,err = xml.Marshal( s )
+			data, err = xml.Marshal( s )
 		}
 		if err != nil {
 			fmt.Printf("error encoding XML SenML %v\n",err);	
 		}
-		fmt.Printf("%s\n", d)
 	}
 
 	// output a CBOR version 
 	if ( *doCborPtr ) {
-		var d []byte 
 		var cborHandle codec.Handle = new(codec.CborHandle)
-		var encoder *codec.Encoder = codec.NewEncoderBytes( &d, cborHandle)
+		var encoder *codec.Encoder = codec.NewEncoderBytes( &data, cborHandle)
 		err = encoder.Encode( s.Records )
 		if err != nil {
 			fmt.Printf("error encoding CBOR SenML %v\n",err)
 			os.Exit( 1 )
 		}
-		fmt.Printf("%s\n", d)
 	}
 
 	// output a MPACK version 
 	if ( *doMpackPtr ) {
-		var d []byte 
 		var mpackHandle codec.Handle = new(codec.MsgpackHandle)
-		var encoder *codec.Encoder = codec.NewEncoderBytes( &d, mpackHandle)
+		var encoder *codec.Encoder = codec.NewEncoderBytes( &data, mpackHandle)
 		err = encoder.Encode( s.Records )
 		if err != nil {
 			fmt.Printf("error encoding MPACK SenML %v\n",err)
 			os.Exit( 1 )
 		}
-		fmt.Printf("%s\n", d)
 	}
+
+	if ( *doSizePtr ) {
+		fmt.Printf("Output message size = %v\n", len( data ) )
+	}
+	
+	// print the output
+	fmt.Printf("%s\n", data )
 }
 
