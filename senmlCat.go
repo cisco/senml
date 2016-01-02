@@ -10,9 +10,12 @@ import (
 	"io/ioutil"
 	"time"
 	"net/http"
+	"net"
 	"strconv"
 	"bytes"
-//	"errors"
+	//	"errors"
+	"hash/crc32"
+	"encoding/binary"
 )
 
 // TODO
@@ -33,7 +36,7 @@ import (
 // make senml package with Marshal and Unmarshal names
 
 
-// test with something like:  curl --data @data.json http://localhost:8000/data
+// test http with something like:  curl --data @data.json http://localhost:8000/data
 // curl --data-binary @data.cbor http://localhost:8001/data
 
 
@@ -73,6 +76,7 @@ var doExpandPtr = flag.Bool("expand", false, "expand SenML records")
 
 var httpPort = flag.Int("http", 0, "port to list for http on")
 var postUrl = flag.String("post", "", "URL to HTTP POST output to")
+var kafkaUrl = flag.String("kafka", "", "URL to for Apache Kafka Broker to send data to")
 
 var doJsonPtr = flag.Bool("json", false, "output JSON formatted SenML ")
 var doCborPtr = flag.Bool("cbor", false, "output CBOR formatted SenML ")
@@ -84,6 +88,8 @@ var doIJsonPtr = flag.Bool("ijson", false, "input JSON formatted SenML ")
 var doIXmlPtr = flag.Bool("ixml", false, "input XML formatted SenML ")
 var doICborPtr = flag.Bool("icbor", false, "input CBOR formatted SenML ")
 var doIMpackPtr = flag.Bool("impack", false, "input MessagePack formatted SenML ")
+
+var kafkaConn net.Conn = nil
 
 
 func decodeSenMLTimed( msg []byte ) (SenML, error) {
@@ -308,10 +314,106 @@ func outputData( data []byte ) ( error ) {
 		println( string( data ) )
 	}
 
+	if kafkaConn != nil  {
+		println( "sending to Kafka=<" + string(data) + ">" )
+
+		topic := []byte( "test" )
+		clientName := []byte( "SenMLCat-0.1" ) // TODO 
+		partition := 0
+		reqID := uint32( 1 ) // TODO 
+		
+		clientNameLen  := len( clientName ) 
+		topicLen := len( topic ) 
+		dataLen := len( data ) 
+		
+		var totalLen int = 8 + 56 + clientNameLen + topicLen + dataLen // TODO 
+		msg := make( []byte, totalLen )
+
+		// protcol doc at https://cwiki.apache.org/confluence/display/KAFKA/A+Guide+To+The+Kafka+Protocol
+		l := 0
+		// generic size header for req or response
+		totalLenLoc := l; l += 4 // request size after theses bytes
+		
+		// generic request header 
+		binary.BigEndian.PutUint16(msg[l:], uint16(0) ); l += 2 // ApiKey - int16 (ProduceRequest = 0)
+		binary.BigEndian.PutUint16(msg[l:], uint16(1) ); l += 2 // ApiVersion  - int16 (curent = 0 but code uses 1 TODO)
+		binary.BigEndian.PutUint32(msg[l:], uint32(reqID) ); l += 4 // CorrelationID - int32
+		binary.BigEndian.PutUint16(msg[l:], uint16( clientNameLen ) ); l += 2 // ClientID Length - int16 
+		copy( msg[l:], clientName ); l += clientNameLen // ClientID
+		
+		// produce request header 
+		binary.BigEndian.PutUint16(msg[l:], uint16( 1 ) ); l += 2 // ReqAcks - int16 TODO 
+		binary.BigEndian.PutUint32(msg[l:], uint32( 1500 ) ); l += 4 // Timeout - int32 - in milli seconds
+		binary.BigEndian.PutUint32(msg[l:], uint32( 1 ) ); l += 4  // Array Lenght (for each TopicName) 
+		binary.BigEndian.PutUint16(msg[l:], uint16( topicLen ) ); l += 2 // topic length - int16
+		copy( msg[l:], topic ); l += topicLen // topic 
+		binary.BigEndian.PutUint32(msg[l:], uint32( 1 ) ); l += 4  // Array Length (for each Partition) 
+		binary.BigEndian.PutUint32(msg[l:], uint32( partition ) ); l += 4 // Partion - int32
+		msgSetLenLoc := l; l += 4 // msg set size - int32
+
+		// message Set Header
+		binary.BigEndian.PutUint64(msg[l:], uint64( 0 ) ); l += 8 // offset - int64 - any value in produce
+		msgLenLoc := l; l += 4 // message size - int32 
+		
+		// message
+		checksumLoc := l; l += 4 // CRC - intt32 - compute over rest of message
+		msg[l] = uint8(0); l += 1  // magic - int8 - current = 0 
+		msg[l] = uint8(0); l += 1 // attributes - int8 - value =0
+		
+		// key - bytes - can be null
+		binary.BigEndian.PutUint32(msg[l:], uint32( 0xFFFFFFFF ) ); l += 4 // key length - int32 - (-1 for NULL)
+
+		// value - bytes
+		binary.BigEndian.PutUint32(msg[l:], uint32( dataLen ) ); l += 4 // data length - int32 
+		copy( msg[l:], data ); l += dataLen // message data
+
+		// backpatch in lengths
+		binary.BigEndian.PutUint32(msg[msgLenLoc:], uint32( l - msgLenLoc - 4  ) );
+		binary.BigEndian.PutUint32(msg[msgSetLenLoc:], uint32( l - msgSetLenLoc - 4  ) );
+		binary.BigEndian.PutUint32(msg[totalLenLoc:], uint32( l - totalLenLoc - 4 )  )
+				
+		// backpatch in checksum
+		checksum := crc32.ChecksumIEEE( msg[checksumLoc+4:l] ) 
+		binary.BigEndian.PutUint32(msg[checksumLoc:], uint32(checksum) )
+		
+		if ( l != totalLen ) {
+			println( "Header Len ",  l-(clientNameLen + topicLen + dataLen) )
+			panic( "assumed kafka mesg header length wrong " )
+		}
+
+		n,err := kafkaConn.Write( msg )
+		if err != nil {
+			println( "Write to kafka ",  string(*kafkaUrl) ," got error", err.Error() )
+			return err
+		}
+		if n != totalLen {
+			println( "Write to kafka wrote too little data n=",n," total=",totalLen )
+			panic( "kafka write problem" )
+		}
+
+		// read a length
+		bufLen  := make( []byte, 4 )
+		n,err = kafkaConn.Read( bufLen )
+			if err != nil {
+			println( "Read from kafka got error", err.Error() )
+			return err
+		}
+		if n != 4 {
+			println( "Read got wrong length n=",n )
+			panic( "kafka write problem" )
+		}
+
+		// TODO response looks like 
+		//00000000  00 00 00 24 00 00 00 01  00 00 00 01 00 04 74 65 ...$.... ......te
+		//00000010  73 74 00 00 00 01 00 00  00 00 00 00 00 00 00 00 st...... ........
+		//00000020  00 00 00 0d 00 00 00 00                          ........
+		
+	}
+	
 	if len(*postUrl) != 0  {
 		println( "PostURL=<" + string(*postUrl) + ">" )
 		buffer := bytes.NewBuffer( data )
-		_, err := http.Post( string(*postUrl) , "image/jpeg", buffer )
+		_, err := http.Post( string(*postUrl) , "application/senml+json", buffer )
 		if err != nil {
 			println( "Post to",  string(*postUrl) ," got error", err.Error() )
 			return err
@@ -376,8 +478,19 @@ func httpReqHandler(w http.ResponseWriter, r *http.Request) {
 
 
 func main() {
+	var err error
+	
 	flag.Parse()
 
+	if len(*kafkaUrl) != 0  {
+		kafkaConn, err = net.DialTimeout("tcp", *kafkaUrl , 2500 * time.Millisecond )
+		if err != nil {
+			fmt.Printf("error connecting to kafka broker %v\n",err)
+			os.Exit( 1 )
+		}
+		defer kafkaConn.Close()
+	}
+	
 	if  *httpPort != 0 {
 		http.HandleFunc("/", httpReqHandler)
 		http.ListenAndServe(":"+strconv.Itoa(*httpPort), nil)
