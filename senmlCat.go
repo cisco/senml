@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -89,7 +90,8 @@ var doCsvPtr  = flag.Bool("csv",  false, "output CSV formatted SenML ")
 var doMpackPtr = flag.Bool("mpack", false, "output MessagePack formatted SenML ")
 var doLinpPtr = flag.Bool("linp", false, "output InfluxDB LineProtcol formatted SenML ")
 
-var doIJsonPtr = flag.Bool("ijson", false, "input JSON formatted SenML ")
+var doIJsonStreamPtr = flag.Bool("ijsons", false, "input JSON formatted SenML stream")
+var doIJsonLinePtr = flag.Bool("ijsonl", false, "input JSON formatted SenML lines")
 var doIXmlPtr = flag.Bool("ixml", false, "input XML formatted SenML ")
 var doICborPtr = flag.Bool("icbor", false, "input CBOR formatted SenML ")
 var doIMpackPtr = flag.Bool("impack", false, "input MessagePack formatted SenML ")
@@ -135,11 +137,27 @@ func decodeSenML( msg []byte ) (SenML, error) {
 	s.Xmlns = "urn:ietf:params:xml:ns:senml"
 	
 	// parse the input JSON
-	if ( *doIJsonPtr ) {
+	if ( *doIJsonStreamPtr ) {
 		err = json.Unmarshal(msg, &s.Records )
 		if err != nil {
-			fmt.Println("error parsing JSON SenML",err)
+			fmt.Println("error parsing JSON SenML Stream",err)
 			return s,err
+		}
+	}
+
+	// parse the input JSON
+	if ( *doIJsonLinePtr ) {
+		lines := strings.Split( string(msg), "\n" )
+		for _,line := range( lines ) {
+			r := new( SenMLRecord )
+			if ( len(line) > 5 ) {
+				err = json.Unmarshal( []byte(line), r )
+				if err != nil {
+					fmt.Println("error parsing JSON SenML Line",err)
+					return s,err
+				}
+				s.Records = append( s.Records , *r )
+			}
 		}
 	}
 	
@@ -214,10 +232,13 @@ func encodeSenML( s SenML ) ( []byte, error ) {
 		for _,r := range s.Records {
 			if r.Value != nil {
 				lines += fmt.Sprintf( "%s,", r.Name )
-				lines += fmt.Sprintf( "%f,", (r.Time / (24.0*3600.0) ) + 25569 ) // excell time in days since 1900, unix seconds since 1970
-				// ( 1970 is 25569 days after 1900 )
-				lines += fmt.Sprintf( "%f,", *r.Value )
-				lines += fmt.Sprintf( "%s\r\n", r.Unit )
+				lines += fmt.Sprintf( "%f,", (r.Time / (24.0*3600.0) ) + 24107.0 ) // excell time in days since 1905, unix seconds since 1970
+				// (24107 days after 1905 )
+				lines += fmt.Sprintf( "%f", *r.Value )
+				if len( r.Unit ) > 0 {
+					lines += fmt.Sprintf( ",%s", r.Unit )
+				} 
+				lines += fmt.Sprintf( "\r\n" )
 			}
 		}
 		data = []byte( lines )
