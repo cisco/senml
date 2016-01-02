@@ -11,13 +11,14 @@ import (
 	"time"
 	"net/http"
 	"strconv"
+	"bytes"
+//	"errors"
 )
 
 // TODO
 // replace relative times with absolute.
 // split up into resonable functions and files 
-// listen on HTTP , UDP , TCP
-// write to HTTP POST
+// listen on UDP , TCP
 // write to multiple locations
 // write usage doc 
 // write to influxdb
@@ -29,21 +30,24 @@ import (
 // read old v=1 senml and convert to v=3
 // perfornance measurements and size measurements
 // better CLI -if json -of xml -i tcp:1234 -o http 2345 
+// make senml package with Marshal and Unmarshal names
+
 
 // test with something like:  curl --data @data.json http://localhost:8000/data
+// curl --data-binary @data.cbor http://localhost:8001/data
 
 
 type SenMLRecord struct {
 	XMLName *bool `json:"_,omitempty" xml:"senml"`
 	
 	BaseName string `json:"bn,omitempty"  xml:"bn,attr,omitempty"`
-	BaseTime int `json:"bt,omitempty"  xml:"bt,attr,omitempty"`
+	BaseTime float64 `json:"bt,omitempty"  xml:"bt,attr,omitempty"`
 	BaseUnit string `json:"bu,omitempty"  xml:"bu,attr,omitempty"`
 	Version int `json:"ver,omitempty"  xml:"ver,attr,omitempty"`
 	
 	Name string `json:"n,omitempty"  xml:"n,attr,omitempty"`
 	Unit string `json:"u,omitempty"  xml:"u,attr,omitempty"`
-	Time int `json:"t,omitempty"  xml:"t,attr,omitempty"`
+	Time float64 `json:"t,omitempty"  xml:"t,attr,omitempty"`
 	UpdateTime int `json:"ut,omitempty"  xml:"ut,attr,omitempty"`
 
 	Value *float64 `json:"v,omitempty"  xml:"v,attr,omitempty"`
@@ -64,27 +68,28 @@ type SenML struct {
 var doIndentPtr = flag.Bool("i", false, "indent output")
 var doTimePtr = flag.Bool("time", false, "time parsing of input")
 var doSizePtr = flag.Bool("size", false, "report size of output")
+var doPrintPtr = flag.Bool("print", false, "print output to stdout")
+var doExpandPtr = flag.Bool("expand", false, "expand SenML records")
 
 var httpPort = flag.Int("http", 0, "port to list for http on")
+var postUrl = flag.String("post", "", "URL to HTTP POST output to")
 
-var doJsonPtr = flag.Bool("json", false, "output JSON formatted SENML ")
-var doCborPtr = flag.Bool("cbor", false, "output CBOR formatted SENML ")
-var doXmlPtr  = flag.Bool("xml",  false, "output XML formatted SENML ")
-var doMpackPtr = flag.Bool("mpack", false, "output MessagePack formatted SENML ")
+var doJsonPtr = flag.Bool("json", false, "output JSON formatted SenML ")
+var doCborPtr = flag.Bool("cbor", false, "output CBOR formatted SenML ")
+var doXmlPtr  = flag.Bool("xml",  false, "output XML formatted SenML ")
+var doMpackPtr = flag.Bool("mpack", false, "output MessagePack formatted SenML ")
+var doLinpPtr = flag.Bool("linp", false, "output InfluxDB LineProtcol formatted SenML ")
 
-var doIJsonPtr = flag.Bool("ijson", false, "input JSON formatted SENML ")
-var doIXmlPtr = flag.Bool("ixml", false, "input XML formatted SENML ")
-var doICborPtr = flag.Bool("icbor", false, "input CBOR formatted SENML ")
-var doIMpackPtr = flag.Bool("impack", false, "input MessagePack formatted SENML ")
+var doIJsonPtr = flag.Bool("ijson", false, "input JSON formatted SenML ")
+var doIXmlPtr = flag.Bool("ixml", false, "input XML formatted SenML ")
+var doICborPtr = flag.Bool("icbor", false, "input CBOR formatted SenML ")
+var doIMpackPtr = flag.Bool("impack", false, "input MessagePack formatted SenML ")
 
 
-func decodeSenML( msg []byte ) (SenML, error) {
-	var s SenML
+func decodeSenMLTimed( msg []byte ) (SenML, error) {
+	var senml SenML
 	var err error
 	
-	s.XMLName = nil
-	s.Xmlns = "urn:ietf:params:xml:ns:senml"
-
 	startParseTime1 := time.Now();
 	endParseTime1 := time.Now();
 	var loops int = 0
@@ -96,50 +101,10 @@ func decodeSenML( msg []byte ) (SenML, error) {
 			startParseTime1 = time.Now();
 		}
 		
-		// parse the input JSON
-		if ( *doIJsonPtr ) {
-			err = json.Unmarshal(msg, &s.Records )
-			if err != nil {
-				fmt.Printf("error parsing JSON SenML %v\n",err)
-				os.Exit( 1 )
-			}
-		}
-		
-		// parse the input XML
-		if ( *doIXmlPtr ) {
-			err = xml.Unmarshal(msg, &s)
-			if err != nil {
-				fmt.Printf("error parsing XML SenML %v\n",err)
-				os.Exit( 1 )
-			}
-		}
-		
-		// parse the input CBOR
-		if ( *doICborPtr ) {
-			var cborHandle codec.Handle = new( codec.CborHandle )
-			var decoder *codec.Decoder = codec.NewDecoderBytes( msg, cborHandle )
-			err = decoder.Decode( &s.Records )
-			if err != nil {
-				fmt.Printf("error parsing CBOR SenML %v\n",err)
-				os.Exit( 1 )
-			}
-		}
-		
-		// parse the input MPACK
-		// spec for MessagePack is at https://github.com/msgpack/msgpack/
-		if ( *doIMpackPtr ) {
-			var mpackHandle codec.Handle = new( codec.MsgpackHandle )
-			var decoder *codec.Decoder = codec.NewDecoderBytes( msg, mpackHandle )
-			err = decoder.Decode( &s.Records )
-			if err != nil {
-				fmt.Printf("error parsing MPACK SenML %v\n",err)
-				os.Exit( 1 )
-			}
-		}
-		
+		senml,err = decodeSenML( msg  )
 	}
 	endParseTime1 = time.Now()
-
+	
 	if ( *doTimePtr ) {
 		parseTime1 := endParseTime1.Sub( startParseTime1 )
 		fmt.Printf("Parse time %v us or %v msg/s \n",
@@ -147,6 +112,58 @@ func decodeSenML( msg []byte ) (SenML, error) {
 			int64( 1.0e9 * float64( loops )  / float64( parseTime1.Nanoseconds() ) ) )
 	}
 
+	return senml,err
+}
+
+
+func decodeSenML( msg []byte ) (SenML, error) {
+	var s SenML
+	var err error
+	
+	s.XMLName = nil
+	s.Xmlns = "urn:ietf:params:xml:ns:senml"
+	
+	// parse the input JSON
+	if ( *doIJsonPtr ) {
+		err = json.Unmarshal(msg, &s.Records )
+		if err != nil {
+			fmt.Printf("error parsing JSON SenML %v\n",err)
+			return s,err
+		}
+	}
+	
+	// parse the input XML
+	if ( *doIXmlPtr ) {
+		err = xml.Unmarshal(msg, &s)
+		if err != nil {
+			fmt.Printf("error parsing XML SenML %v\n",err)
+				return s,err
+		}
+	}
+	
+	// parse the input CBOR
+	if ( *doICborPtr ) {
+		var cborHandle codec.Handle = new( codec.CborHandle )
+		var decoder *codec.Decoder = codec.NewDecoderBytes( msg, cborHandle )
+		err = decoder.Decode( &s.Records )
+		if err != nil {
+			fmt.Printf("error parsing CBOR SenML %v\n",err)
+			return s,err
+		}
+	}
+	
+	// parse the input MPACK
+	// spec for MessagePack is at https://github.com/msgpack/msgpack/
+	if ( *doIMpackPtr ) {
+		var mpackHandle codec.Handle = new( codec.MsgpackHandle )
+		var decoder *codec.Decoder = codec.NewDecoderBytes( msg, mpackHandle )
+		err = decoder.Decode( &s.Records )
+		if err != nil {
+			fmt.Printf("error parsing MPACK SenML %v\n",err)
+			return s,err
+		}
+	}
+		
 	return s , nil 
 }
 
@@ -163,7 +180,7 @@ func encodeSenML( s SenML ) ( []byte, error ) {
 		}
 		if err != nil {
 			fmt.Printf("error encoding JSON SenML %v\n",err)
-			os.Exit( 1 )
+			return nil, err
 		}
 	}
 
@@ -175,7 +192,8 @@ func encodeSenML( s SenML ) ( []byte, error ) {
 			data, err = xml.Marshal( s )
 		}
 		if err != nil {
-			fmt.Printf("error encoding XML SenML %v\n",err);	
+			fmt.Printf("error encoding XML SenML %v\n",err);
+			return nil, err
 		}
 	}
 
@@ -186,7 +204,7 @@ func encodeSenML( s SenML ) ( []byte, error ) {
 		err = encoder.Encode( s.Records )
 		if err != nil {
 			fmt.Printf("error encoding CBOR SenML %v\n",err)
-			os.Exit( 1 )
+			return nil, err
 		}
 	}
 
@@ -197,10 +215,26 @@ func encodeSenML( s SenML ) ( []byte, error ) {
 		err = encoder.Encode( s.Records )
 		if err != nil {
 			fmt.Printf("error encoding MPACK SenML %v\n",err)
-			os.Exit( 1 )
+			return nil, err
 		}
+
 	}
 
+	if ( *doLinpPtr ) {
+		var lines string
+		for _,r := range s.Records {
+			if r.Value != nil {
+				lines += fmt.Sprintf( "%s", r.Name )
+				if len( r.Unit ) > 0 {
+					lines += fmt.Sprintf( ",u=%s", r.Unit )
+				} 
+				lines += fmt.Sprintf( " value=%f", *r.Value )
+				lines += fmt.Sprintf( " %d\n", r.Time )
+			}
+		}
+		data = []byte( lines )
+	}
+	
 	if ( *doSizePtr ) {
 		fmt.Printf("Output message size = %v\n", len( data ) )
 	}
@@ -208,23 +242,117 @@ func encodeSenML( s SenML ) ( []byte, error ) {
 	return data , nil
 }
 
+func expandSenML( senml SenML) ( SenML ){
+	var bname string = ""
+	var btime float64 = 0.0
+	var bunit string = ""
+	var ver = 3
+	var ret SenML
+
+	var totalRecords int = 0
+	for _,r := range senml.Records {
+		if (r.Value != nil) || ( len(r.StringValue)>0) || (r.BoolValue != nil) {
+			totalRecords += 1
+		}
+	}
+	
+	ret.XMLName = senml.XMLName
+	ret.Xmlns = senml.Xmlns
+	ret.Records = make( []SenMLRecord, totalRecords )
+	var numRecords =0
+	
+	for _,r := range senml.Records {
+		if r.BaseTime != 0 {
+			btime = r.BaseTime
+		}
+		if r.Version != 0 {
+			ver = r.Version
+		}
+		if len(r.BaseUnit) >0 {
+			bunit = r.BaseUnit
+		}
+		if len(r.BaseName) >0 {
+			bname = r.BaseName
+		}
+		r.BaseTime = 0
+		r.BaseUnit = ""
+		r.BaseName = ""
+		r.Name = bname + r.Name
+		r.Time = btime + r.Time
+		if len(r.Unit) == 0 {
+			r.Unit = bunit
+		}
+		r.Version = ver
+
+		if  ( r.Time <= 0 )	{
+			// convert to absolute time
+			var now int64 = time.Now().UnixNano()
+			var t float64 = float64( now ) / 1.0e9
+			r.Time = t + r.Time
+		}
+		
+		if (r.Value != nil) || ( len(r.StringValue)>0) || (r.BoolValue != nil) {
+			ret.Records[numRecords] = r
+			numRecords += 1
+		}
+	}
+
+	return ret
+}
+
+
+func outputData( data []byte ) ( error ) {
+	// print the output
+
+	if *doPrintPtr {
+		println( string( data ) )
+	}
+
+	if len(*postUrl) != 0  {
+		println( "PostURL=<" + string(*postUrl) + ">" )
+		buffer := bytes.NewBuffer( data )
+		_, err := http.Post( string(*postUrl) , "image/jpeg", buffer )
+		if err != nil {
+			println( "Post to",  string(*postUrl) ," got error", err.Error() )
+			return err
+		}
+	}
+	
+	return nil
+}
+
 
 func processData( dataIn []byte ) ( error ) {
 	var senml SenML
 	var err error
+
+	//println( "DataIn:", dataIn )
 	
-	senml,err = decodeSenML( dataIn )
+	senml,err = decodeSenMLTimed( dataIn )
 	if err != nil {
+		println( "Decode of SenML failed" )
 		return err
+	}
+
+	//println( "Senml:", senml.Records )
+	if *doExpandPtr {
+		senml = expandSenML( senml )
 	}
 	
 	var dataOut []byte;
 	dataOut, err = encodeSenML( senml )
 	if err != nil {
+		println( "Encode of SenML failed" )
 		return err
 	}
-	// print the output
-	println( string(dataOut) )
+
+	//println( "DataOut:", dataOut )
+
+	err = outputData( dataOut )
+	if err != nil {
+		println( "Output of SenML failed" )
+		return err
+	}
 
 	return nil
 }
@@ -239,9 +367,11 @@ func httpReqHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		panic( "Problem reading HTTP body" )
 	}
-	//println( "Body: ",  string(body) )
 
 	err = processData( body )
+	if err != nil {
+		http.Error(w, err.Error(), 400)
+	}
 }
 
 
