@@ -3,7 +3,9 @@ package main
 import (
 	"fmt"
 	"encoding/json"
+	"flag"
 	"os"
+	"io/ioutil"
 )
 
 type SenMLRecord struct {
@@ -33,12 +35,16 @@ type SenML struct {
 func main() {
 	var err error;
 
+	doIndentPtr := flag.Bool("i", false, "indent output")
+	flag.Parse()
+
 	// load the input JSON 
-	msg := []byte( `[
-             {"bn":"urn:dev:mac:0024befffe804ff1/","bt":1276020076,"bu":"A","ver":2},
-             {"n":"voltage","u":"V","v":0},{"n":"current","t":-4,"v":1.3,"sv":"nice"},
-             {"n":"current","t":-3,"v":1,"s":33.44},{"n":"current","v":1.7,"bv":true}]` )
-    fmt.Print(string(msg))
+	msg, err := ioutil.ReadFile( flag.Arg(0) )
+	if err != nil {
+		fmt.Printf("error reading JSON XML %v\n",err)
+		os.Exit( 1 )
+	}	
+    //fmt.Print(string(msg))
 
 	// parse the input JSON 
 	var s SenMLStream
@@ -49,12 +55,14 @@ func main() {
 	}
 
 	var d []byte;
-	d,err = json.MarshalIndent( s, "", "  " )
-	//d,err = json.Marshal( s )
+	if ( *doIndentPtr ) {
+		d,err = json.MarshalIndent( s, "", "  " )
+	} else {
+		d,err = json.Marshal( s )
+	}
 	if err != nil {
 		fmt.Printf("error encoding json %v\n",err)
 		os.Exit( 1 )
 	}
-
 	fmt.Printf("%s\n", d)
 }
