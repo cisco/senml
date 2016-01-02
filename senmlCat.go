@@ -9,18 +9,29 @@ import (
 	"os"
 	"io/ioutil"
 	"time"
+	"net/http"
+	"strconv"
 )
 
 // TODO
 // replace relative times with absolute.
+// split up into resonable functions and files 
 // listen on HTTP , UDP , TCP
-// wrtie to HTTP POST 
+// write to HTTP POST
+// write to multiple locations
+// write usage doc 
 // write to influxdb
 // write to Kafka
+// auto guese input format if not on CLI 
 // support EXI ??
-// read old v=1 senml and conver to v=3
+// write to COAP post
+// listen on COAP
+// read old v=1 senml and convert to v=3
 // perfornance measurements and size measurements
 // better CLI -if json -of xml -i tcp:1234 -o http 2345 
+
+// test with something like:  curl --data @data.json http://localhost:8000/data
+
 
 type SenMLRecord struct {
 	XMLName *bool `json:"_,omitempty" xml:"senml"`
@@ -50,35 +61,27 @@ type SenML struct {
 	Records []SenMLRecord  ` xml:"senml"`
 }
 
+var doIndentPtr = flag.Bool("i", false, "indent output")
+var doTimePtr = flag.Bool("time", false, "time parsing of input")
+var doSizePtr = flag.Bool("size", false, "report size of output")
 
-func main() {
-	var err error;
+var httpPort = flag.Int("http", 0, "port to list for http on")
 
-	doIndentPtr := flag.Bool("i", false, "indent output")
-	doTimePtr := flag.Bool("time", false, "time parsing of input")
-	doSizePtr := flag.Bool("size", false, "report size of output")
-	
-	doJsonPtr := flag.Bool("json", false, "output JSON formatted SENML ")
-	doCborPtr := flag.Bool("cbor", false, "output CBOR formatted SENML ")
-	doXmlPtr  := flag.Bool("xml",  false, "output XML formatted SENML ")
-	doMpackPtr := flag.Bool("mpack", false, "output MessagePack formatted SENML ")
-	
-	doIJsonPtr := flag.Bool("ijson", false, "input JSON formatted SENML ")
-	doIXmlPtr := flag.Bool("ixml", false, "input XML formatted SENML ")
-	doICborPtr := flag.Bool("icbor", false, "input CBOR formatted SENML ")
-	doIMpackPtr := flag.Bool("impack", false, "input MessagePack formatted SENML ")
-	
-	flag.Parse()
+var doJsonPtr = flag.Bool("json", false, "output JSON formatted SENML ")
+var doCborPtr = flag.Bool("cbor", false, "output CBOR formatted SENML ")
+var doXmlPtr  = flag.Bool("xml",  false, "output XML formatted SENML ")
+var doMpackPtr = flag.Bool("mpack", false, "output MessagePack formatted SENML ")
 
-	// load the input  
-	msg, err := ioutil.ReadFile( flag.Arg(0) )
-	if err != nil {
-		fmt.Printf("error reading JSON XML %v\n",err)
-		os.Exit( 1 )
-	}	
-    //fmt.Print(string(msg))
-	
+var doIJsonPtr = flag.Bool("ijson", false, "input JSON formatted SENML ")
+var doIXmlPtr = flag.Bool("ixml", false, "input XML formatted SENML ")
+var doICborPtr = flag.Bool("icbor", false, "input CBOR formatted SENML ")
+var doIMpackPtr = flag.Bool("impack", false, "input MessagePack formatted SENML ")
+
+
+func decodeSenML( msg []byte ) (SenML, error) {
 	var s SenML
+	var err error
+	
 	s.XMLName = nil
 	s.Xmlns = "urn:ietf:params:xml:ns:senml"
 
@@ -144,8 +147,13 @@ func main() {
 			int64( 1.0e9 * float64( loops )  / float64( parseTime1.Nanoseconds() ) ) )
 	}
 
-	var data []byte;
+	return s , nil 
+}
 
+func encodeSenML( s SenML ) ( []byte, error ) {
+	var data []byte
+	var err error
+		
 	// ouput JSON version 
 	if ( *doJsonPtr ) {
 		if ( *doIndentPtr ) {
@@ -196,8 +204,64 @@ func main() {
 	if ( *doSizePtr ) {
 		fmt.Printf("Output message size = %v\n", len( data ) )
 	}
-	
-	// print the output
-	fmt.Printf("%s\n", data )
+
+	return data , nil
 }
+
+
+func processData( dataIn []byte ) ( error ) {
+	var senml SenML
+	var err error
+	
+	senml,err = decodeSenML( dataIn )
+	if err != nil {
+		return err
+	}
+	
+	var dataOut []byte;
+	dataOut, err = encodeSenML( senml )
+	if err != nil {
+		return err
+	}
+	// print the output
+	println( string(dataOut) )
+
+	return nil
+}
+
+
+func httpReqHandler(w http.ResponseWriter, r *http.Request) {
+	//println( "HTTP request to ",  r.URL.Path )
+	//println( "Method: ",  r.Method )
+
+	defer r.Body.Close()
+	body, err := ioutil.ReadAll( r.Body)
+	if err != nil {
+		panic( "Problem reading HTTP body" )
+	}
+	//println( "Body: ",  string(body) )
+
+	err = processData( body )
+}
+
+
+func main() {
+	flag.Parse()
+
+	if  *httpPort != 0 {
+		http.HandleFunc("/", httpReqHandler)
+		http.ListenAndServe(":"+strconv.Itoa(*httpPort), nil)
+	} else {
+		// load the input  
+		msg, err := ioutil.ReadFile( flag.Arg(0) )
+		if err != nil {
+			fmt.Printf("error reading SenML file %v\n",err)
+			os.Exit( 1 )
+		}	
+		//fmt.Print(string(msg))
+		
+		err = processData( msg )
+	}
+}
+
 
