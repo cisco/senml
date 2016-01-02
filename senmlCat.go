@@ -232,8 +232,8 @@ func encodeSenML( s SenML ) ( []byte, error ) {
 		for _,r := range s.Records {
 			if r.Value != nil {
 				lines += fmt.Sprintf( "%s,", r.Name )
-				lines += fmt.Sprintf( "%f,", (r.Time / (24.0*3600.0) ) + 24107.0 ) // excell time in days since 1905, unix seconds since 1970
-				// (24107 days after 1905 )
+				lines += fmt.Sprintf( "%f,", (r.Time / (24.0*3600.0) ) + 25569.0 ) // excell time in days since 1900, unix seconds since 1970
+				// ( 1970 is 25569 days after 1900 )
 				lines += fmt.Sprintf( "%f", *r.Value )
 				if len( r.Unit ) > 0 {
 					lines += fmt.Sprintf( ",%s", r.Unit )
