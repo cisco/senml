@@ -1,21 +1,21 @@
 package main
 
 import (
-	"fmt"
+	"bytes"
+	"encoding/binary"
 	"encoding/json"
 	"encoding/xml"
-	"github.com/ugorji/go/codec"
-	"flag"
-	"os"
-	"io/ioutil"
-	"time"
-	"net/http"
-	"net"
-	"strconv"
-	"bytes"
 	"errors"
+	"flag"
+	"fmt"
+	"github.com/ugorji/go/codec"
 	"hash/crc32"
-	"encoding/binary"
+	"io/ioutil"
+	"net"
+	"net/http"
+	"os"
+	"strconv"
+	"time"
 )
 
 // TODO
@@ -25,7 +25,6 @@ import (
 // write to multiple locations
 // write usage doc 
 // write to influxdb
-// write to Kafka
 // auto guese input format if not on CLI 
 // support EXI ??
 // write to COAP post
@@ -34,10 +33,13 @@ import (
 // perfornance measurements and size measurements
 // better CLI -if json -of xml -i tcp:1234 -o http 2345 
 // make senml package with Marshal and Unmarshal names
+// if loose kafka connection, reopen it (or perhaps 1 connection per transaction)
+// option to print json object (not array, one per line) to kafka
 
+// define a CSV format for senml 
 
 // test http with something like:  curl --data @data.json http://localhost:8000/data
-// curl --data-binary @data.cbor http://localhost:8001/data
+// curl --data-binary @dagta.cbor http://localhost:8001/data
 
 
 type SenMLRecord struct {
@@ -83,6 +85,7 @@ var kafkaTopic = flag.String("topic", "senml", "Apache Kafka topic")
 var doJsonPtr = flag.Bool("json", false, "output JSON formatted SenML ")
 var doCborPtr = flag.Bool("cbor", false, "output CBOR formatted SenML ")
 var doXmlPtr  = flag.Bool("xml",  false, "output XML formatted SenML ")
+var doCsvPtr  = flag.Bool("csv",  false, "output CSV formatted SenML ")
 var doMpackPtr = flag.Bool("mpack", false, "output MessagePack formatted SenML ")
 var doLinpPtr = flag.Bool("linp", false, "output InfluxDB LineProtcol formatted SenML ")
 
@@ -205,6 +208,25 @@ func encodeSenML( s SenML ) ( []byte, error ) {
 		}
 	}
 
+	// output a CSV version 
+	if ( *doCsvPtr ) {
+		var lines string
+		for _,r := range s.Records {
+			if r.Value != nil {
+				lines += fmt.Sprintf( "%s,", r.Name )
+				lines += fmt.Sprintf( "%f,", (r.Time / (24.0*3600.0) ) + 25569 ) // excell time in days since 1900, unix seconds since 1970
+				// ( 1970 is 25569 days after 1900 )
+				lines += fmt.Sprintf( "%f,", *r.Value )
+				lines += fmt.Sprintf( "%s\r\n", r.Unit )
+			}
+		}
+		data = []byte( lines )
+		
+		if err != nil {
+			fmt.Println("error encoding CSV SenML",err);
+			return nil, err
+		}
+	}
 	// output a CBOR version 
 	if ( *doCborPtr ) {
 		var cborHandle codec.Handle = new(codec.CborHandle)
@@ -237,7 +259,7 @@ func encodeSenML( s SenML ) ( []byte, error ) {
 					lines += fmt.Sprintf( ",u=%s", r.Unit )
 				} 
 				lines += fmt.Sprintf( " value=%f", *r.Value )
-				lines += fmt.Sprintf( " %d\n", r.Time )
+				lines += fmt.Sprintf( " %f\n", r.Time )
 			}
 		}
 		data = []byte( lines )
