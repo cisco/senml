@@ -13,7 +13,7 @@ import (
 	"net"
 	"strconv"
 	"bytes"
-	//	"errors"
+	"errors"
 	"hash/crc32"
 	"encoding/binary"
 )
@@ -78,6 +78,8 @@ var httpPort = flag.Int("http", 0, "port to list for http on")
 var postUrl = flag.String("post", "", "URL to HTTP POST output to")
 var kafkaUrl = flag.String("kafka", "", "URL to for Apache Kafka Broker to send data to")
 
+var kafkaTopic = flag.String("topic", "senml", "Apache Kafka topic")
+
 var doJsonPtr = flag.Bool("json", false, "output JSON formatted SenML ")
 var doCborPtr = flag.Bool("cbor", false, "output CBOR formatted SenML ")
 var doXmlPtr  = flag.Bool("xml",  false, "output XML formatted SenML ")
@@ -90,7 +92,7 @@ var doICborPtr = flag.Bool("icbor", false, "input CBOR formatted SenML ")
 var doIMpackPtr = flag.Bool("impack", false, "input MessagePack formatted SenML ")
 
 var kafkaConn net.Conn = nil
-
+var kafkaReqNumber uint32 = 1
 
 func decodeSenMLTimed( msg []byte ) (SenML, error) {
 	var senml SenML
@@ -133,7 +135,7 @@ func decodeSenML( msg []byte ) (SenML, error) {
 	if ( *doIJsonPtr ) {
 		err = json.Unmarshal(msg, &s.Records )
 		if err != nil {
-			fmt.Printf("error parsing JSON SenML %v\n",err)
+			fmt.Println("error parsing JSON SenML",err)
 			return s,err
 		}
 	}
@@ -142,8 +144,8 @@ func decodeSenML( msg []byte ) (SenML, error) {
 	if ( *doIXmlPtr ) {
 		err = xml.Unmarshal(msg, &s)
 		if err != nil {
-			fmt.Printf("error parsing XML SenML %v\n",err)
-				return s,err
+			fmt.Println("error parsing XML SenML",err)
+			return s,err
 		}
 	}
 	
@@ -153,7 +155,7 @@ func decodeSenML( msg []byte ) (SenML, error) {
 		var decoder *codec.Decoder = codec.NewDecoderBytes( msg, cborHandle )
 		err = decoder.Decode( &s.Records )
 		if err != nil {
-			fmt.Printf("error parsing CBOR SenML %v\n",err)
+			fmt.Println("error parsing CBOR SenML",err)
 			return s,err
 		}
 	}
@@ -165,7 +167,7 @@ func decodeSenML( msg []byte ) (SenML, error) {
 		var decoder *codec.Decoder = codec.NewDecoderBytes( msg, mpackHandle )
 		err = decoder.Decode( &s.Records )
 		if err != nil {
-			fmt.Printf("error parsing MPACK SenML %v\n",err)
+			fmt.Println("error parsing MPACK SenML",err)
 			return s,err
 		}
 	}
@@ -185,7 +187,7 @@ func encodeSenML( s SenML ) ( []byte, error ) {
 			data, err = json.Marshal( s.Records )
 		}
 		if err != nil {
-			fmt.Printf("error encoding JSON SenML %v\n",err)
+			fmt.Println("error encoding JSON SenML",err)
 			return nil, err
 		}
 	}
@@ -198,7 +200,7 @@ func encodeSenML( s SenML ) ( []byte, error ) {
 			data, err = xml.Marshal( s )
 		}
 		if err != nil {
-			fmt.Printf("error encoding XML SenML %v\n",err);
+			fmt.Println("error encoding XML SenML",err);
 			return nil, err
 		}
 	}
@@ -209,7 +211,7 @@ func encodeSenML( s SenML ) ( []byte, error ) {
 		var encoder *codec.Encoder = codec.NewEncoderBytes( &data, cborHandle)
 		err = encoder.Encode( s.Records )
 		if err != nil {
-			fmt.Printf("error encoding CBOR SenML %v\n",err)
+			fmt.Println("error encoding CBOR SenML",err)
 			return nil, err
 		}
 	}
@@ -220,7 +222,7 @@ func encodeSenML( s SenML ) ( []byte, error ) {
 		var encoder *codec.Encoder = codec.NewEncoderBytes( &data, mpackHandle)
 		err = encoder.Encode( s.Records )
 		if err != nil {
-			fmt.Printf("error encoding MPACK SenML %v\n",err)
+			fmt.Println("error encoding MPACK SenML",err)
 			return nil, err
 		}
 
@@ -242,7 +244,7 @@ func encodeSenML( s SenML ) ( []byte, error ) {
 	}
 	
 	if ( *doSizePtr ) {
-		fmt.Printf("Output message size = %v\n", len( data ) )
+		fmt.Println("Output message size = ", len( data ) )
 	}
 
 	return data , nil
@@ -311,16 +313,16 @@ func outputData( data []byte ) ( error ) {
 	// print the output
 
 	if *doPrintPtr {
-		println( string( data ) )
+		fmt.Println( string( data ) )
 	}
 
 	if kafkaConn != nil  {
-		println( "sending to Kafka=<" + string(data) + ">" )
+		//fmt.Println( "sending to Kafka=<" + string(data) + ">" )
 
-		topic := []byte( "test" )
-		clientName := []byte( "SenMLCat-0.1" ) // TODO 
-		partition := 0
-		reqID := uint32( 1 ) // TODO 
+		topic := []byte( string(*kafkaTopic) )
+		clientName := []byte( "SenMLCat-0.1" )
+		partition := 0 // TODO - does this need to be settable from CLI 
+		reqID := kafkaReqNumber; kafkaReqNumber += 1
 		
 		clientNameLen  := len( clientName ) 
 		topicLen := len( topic ) 
@@ -377,43 +379,38 @@ func outputData( data []byte ) ( error ) {
 		binary.BigEndian.PutUint32(msg[checksumLoc:], uint32(checksum) )
 		
 		if ( l != totalLen ) {
-			println( "Header Len ",  l-(clientNameLen + topicLen + dataLen) )
+			fmt.Println( "Header Len ",  l-(clientNameLen + topicLen + dataLen) )
 			panic( "assumed kafka mesg header length wrong " )
 		}
 
 		n,err := kafkaConn.Write( msg )
 		if err != nil {
-			println( "Write to kafka ",  string(*kafkaUrl) ," got error", err.Error() )
+			fmt.Println( "Write to kafka ",  string(*kafkaUrl) ," got error", err )
 			return err
 		}
 		if n != totalLen {
-			println( "Write to kafka wrote too little data n=",n," total=",totalLen )
-			panic( "kafka write problem" )
+			return errors.New( "Coud not write request to Kafka server" ) // TODO 
 		}
 
 		// read a length
 		lenBuf  := make( []byte, 4 )
 		n,err = kafkaConn.Read( lenBuf )
-			if err != nil {
-			println( "Read from kafka got error", err.Error() )
-			return err
+		if err != nil {
+			return errors.New( "Coud not read response from Kafka server" )
 		}
 		if n != 4 {
-			println( "Read got wrong length n=",n )
-			panic( "kafka write problem 1" )
+			return errors.New( "Coud not read response from Kafka server" )
 		}
 
 		respLen := binary.BigEndian.Uint32(lenBuf)
 		buf := make( []byte, respLen )
 
 		n,err = kafkaConn.Read( buf )
-			if err != nil {
-			println( "Read 2 from kafka got error", err.Error() )
-			return err
+		if err != nil {
+			return errors.New( "Coud not read response from Kafka server" )
 		}
 		if n != int(respLen) {
-			println( "Read 2 got wrong length n=",n )
-			panic( "kafka read problem 2" )
+			return errors.New( "Coud not read response from Kafka server" )
 		}
 
 		l = 0
@@ -429,19 +426,55 @@ func outputData( data []byte ) ( error ) {
 				respOffset := binary.BigEndian.Uint64(buf[l:]); l+= 8 	 // offset - int64
 
 				if respError != 0 {
-					println( "Kafka response err=",respError,
+					fmt.Println( "Kafka response err=",respError,
 						" part=",respPartition, " topic=", topic, " respReqID=",respReqID, " respOffset=",respOffset  )
+
+					switch respError {
+					case 0: // no error
+					case 0xFFFF: return errors.New( "Kafka unknown error" )// unknown error
+					case 1: return errors.New( "Kafka Error OffsetOutOfRange" )
+					case 2: return errors.New( "Kafka Error InvalidMessage" )
+					case 3: return errors.New( "Kafka Error UnknownTopicOrPartition" )
+					case 4: return errors.New( "Kafka Error InvalidMessageSize" )
+					case 5: return errors.New( "Kafka Error LeaderNotAvailable" )
+					case 6: return errors.New( "Kafka Error NotLeaderForPartition" )
+					case 7: return errors.New( "Kafka Error RequestTimedOut" )
+					case 8: return errors.New( "Kafka Error BrokerNotAvailable" )
+					case 9: return errors.New( "Kafka Error ReplicaNotAvailable" )
+					case 10: return errors.New( "Kafka Error MessageSizeTooLarge" )
+					case 11: return errors.New( "Kafka Error StaleControllerEpochCode" )
+					case 12: return errors.New( "Kafka Error OffsetMetadataTooLargeCode" )
+					case 14: return errors.New( "Kafka Error GroupLoadInProgressCode" )
+					case 15: return errors.New( "Kafka Error GroupCoordinatorNotAvailableCode" )
+					case 16: return errors.New( "Kafka Error NotCoordinatorForGroupCode" )
+					case 17: return errors.New( "Kafka Error InvalidTopicCode" )
+					case 18: return errors.New( "Kafka Error RecordListTooLargeCode" )
+					case 19: return errors.New( "Kafka Error NotEnoughReplicasCode" )
+					case 20: return errors.New( "Kafka Error NotEnoughReplicasAfterAppendCode" )
+					case 21: return errors.New( "Kafka Error InvalidRequiredAcksCode" )
+					case 22: return errors.New( "Kafka Error IllegalGenerationCode" )
+					case 23: return errors.New( "Kafka Error InconsistentGroupProtocolCode" )
+					case 24: return errors.New( "Kafka Error InvalidGroupIdCode" )
+					case 25: return errors.New( "Kafka Error UnknownMemberIdCode" )
+					case 26: return errors.New( "Kafka Error InvalidSessionTimeoutCode" )
+					case 27: return errors.New( "Kafka Error RebalanceInProgressCode" )
+					case 28: return errors.New( "Kafka Error InvalidCommitOffsetSizeCode" )
+					case 29: return errors.New( "Kafka Error TopicAuthorizationFailedCode" )
+					case 30: return errors.New( "Kafka Error GroupAuthorizationFailedCode" )
+					case 31: return errors.New( "Kafka Error ClusterAuthorizationFailedCode" )
+					}
 				}
+				
 			}
 		}
 	}
 	
 	if len(*postUrl) != 0  {
-		println( "PostURL=<" + string(*postUrl) + ">" )
+		fmt.Println( "PostURL=<" + string(*postUrl) + ">" )
 		buffer := bytes.NewBuffer( data )
 		_, err := http.Post( string(*postUrl) , "application/senml+json", buffer )
 		if err != nil {
-			println( "Post to",  string(*postUrl) ," got error", err.Error() )
+			fmt.Println( "Post to",  string(*postUrl) ," got error", err.Error() )
 			return err
 		}
 	}
@@ -453,16 +486,16 @@ func outputData( data []byte ) ( error ) {
 func processData( dataIn []byte ) ( error ) {
 	var senml SenML
 	var err error
-
-	//println( "DataIn:", dataIn )
+	
+	//fmt.Println( "DataIn:", dataIn )
 	
 	senml,err = decodeSenMLTimed( dataIn )
 	if err != nil {
-		println( "Decode of SenML failed" )
+		fmt.Println( "Decode of SenML failed" )
 		return err
 	}
 
-	//println( "Senml:", senml.Records )
+	//fmt.Println( "Senml:", senml.Records )
 	if *doExpandPtr {
 		senml = expandSenML( senml )
 	}
@@ -470,15 +503,15 @@ func processData( dataIn []byte ) ( error ) {
 	var dataOut []byte;
 	dataOut, err = encodeSenML( senml )
 	if err != nil {
-		println( "Encode of SenML failed" )
+		fmt.Println( "Encode of SenML failed" )
 		return err
 	}
 
-	//println( "DataOut:", dataOut )
+	//fmt.Println( "DataOut:", dataOut )
 
 	err = outputData( dataOut )
 	if err != nil {
-		println( "Output of SenML failed" )
+		fmt.Println( "Output of SenML failed:", err )
 		return err
 	}
 
@@ -487,8 +520,8 @@ func processData( dataIn []byte ) ( error ) {
 
 
 func httpReqHandler(w http.ResponseWriter, r *http.Request) {
-	//println( "HTTP request to ",  r.URL.Path )
-	//println( "Method: ",  r.Method )
+	//fmt.Println( "HTTP request to ",  r.URL.Path )
+	//fmt.Println( "Method: ",  r.Method )
 
 	defer r.Body.Close()
 	body, err := ioutil.ReadAll( r.Body)
@@ -511,7 +544,7 @@ func main() {
 	if len(*kafkaUrl) != 0  {
 		kafkaConn, err = net.DialTimeout("tcp", *kafkaUrl , 2500 * time.Millisecond )
 		if err != nil {
-			fmt.Printf("error connecting to kafka broker %v\n",err)
+			fmt.Println("error connecting to kafka broker",err)
 			os.Exit( 1 )
 		}
 		defer kafkaConn.Close()
@@ -524,10 +557,10 @@ func main() {
 		// load the input  
 		msg, err := ioutil.ReadFile( flag.Arg(0) )
 		if err != nil {
-			fmt.Printf("error reading SenML file %v\n",err)
+			fmt.Println("error reading SenML file",err)
 			os.Exit( 1 )
 		}	
-		//fmt.Print(string(msg))
+		//fmt.Println(string(msg))
 		
 		err = processData( msg )
 	}
