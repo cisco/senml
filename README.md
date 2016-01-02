@@ -1,10 +1,11 @@
 # senmlCat
-Tool to convert senml between formats and act as gateway server to other services
+Tool to convert SenML between formats and act as gateway server to other services
 
 # usage
 
-## convert json senml to xml
+## convert JSON SenML to XML 
+senmlCat -json -i data.json > data.xml
 
-./senmlCat -json -i data.json > data.xml
-
+## convert JSON SenML to CBOR
+senmlCat.go -ijson -cbor data.json > data.cbor 
 
