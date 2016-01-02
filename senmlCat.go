@@ -27,12 +27,11 @@ type SenMLRecord struct {
 	Sum *float64 `json:"s,omitempty"  xml:"sum,,attr,omitempty"`
 }  
 
-type SenMLStream []SenMLRecord;
 
 type SenML struct {
-	XMLName *bool `json:"_,omitempty" xml:"senmls"`
+	XMLName *bool `json:"_,omitempty" xml:"sensml"`
 	Xmlns string `json:"_,omitempty" xml:"xmlns,attr"`
-	SenMLStream
+	Records []SenMLRecord  `json:"_,omitempty" xml:"senml"`
 }
 
 
@@ -42,29 +41,45 @@ func main() {
 	doIndentPtr := flag.Bool("i", false, "indent output")
 	doJSONPtr := flag.Bool("json", false, "output JSON formatted SENML ")
 	doXMLPtr := flag.Bool("xml", false, "output XML formatted SENML ")
+	doIJSONPtr := flag.Bool("ijson", false, "input JSON formatted SENML ")
+	doIXMLPtr := flag.Bool("ixml", false, "input XML formatted SENML ")
 	flag.Parse()
 
-	// load the input JSON 
+	// load the input  
 	msg, err := ioutil.ReadFile( flag.Arg(0) )
 	if err != nil {
 		fmt.Printf("error reading JSON XML %v\n",err)
 		os.Exit( 1 )
 	}	
     //fmt.Print(string(msg))
-
-	// parse the input JSON 
-	var s SenMLStream
-	err = json.Unmarshal(msg, &s)
-	if err != nil {
-		fmt.Printf("error parsing JSON XML %v\n",err)
-		os.Exit( 1 )
+	
+	var s SenML
+	s.XMLName = nil
+	s.Xmlns = "urn:ietf:params:xml:ns:senml"
+	
+	// parse the input JSON
+	if ( *doIJSONPtr ) {
+		err = json.Unmarshal(msg, &s.Records )
+		if err != nil {
+			fmt.Printf("error parsing JSON XML %v\n",err)
+			os.Exit( 1 )
+		}
 	}
-
+	
+	// parse the input XML
+	if ( *doIXMLPtr ) {
+		err = xml.Unmarshal(msg, &s)
+		if err != nil {
+			fmt.Printf("error parsing JSON XML %v\n",err)
+			os.Exit( 1 )
+		}
+	}
+	
 	// ouput JSON version 
 	if ( *doJSONPtr ) {
 		var d []byte;
 		if ( *doIndentPtr ) {
-			d,err = json.MarshalIndent( s, "", "  " )
+			d,err = json.MarshalIndent( s.Records, "", "  " )
 		} else {
 			d,err = json.Marshal( s )
 		}
@@ -78,17 +93,15 @@ func main() {
 	// out put a XML version 
 	if ( *doXMLPtr ) {
 		var d []byte;
-		var sxml SenML = SenML{ nil, "urn:ietf:params:xml:ns:senml", s }
-		
 		if ( *doIndentPtr ) {
-			d,err = xml.MarshalIndent( sxml, "", "  " )
+			d,err = xml.MarshalIndent( s, "", "  " )
 		} else {
-			d,err = xml.Marshal( sxml )
+			d,err = xml.Marshal( s )
 		}
 		if err != nil {
 			fmt.Printf("error encoding xml %v\n",err);	
 		}
 		fmt.Printf("%s\n", d)
-	}
-	
+	}	
 }
+
