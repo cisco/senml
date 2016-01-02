@@ -55,13 +55,15 @@ func main() {
 
 	doIndentPtr := flag.Bool("i", false, "indent output")
 	
-	doJSONPtr := flag.Bool("json", false, "output JSON formatted SENML ")
+	doJsonPtr := flag.Bool("json", false, "output JSON formatted SENML ")
 	doCborPtr := flag.Bool("cbor", false, "output CBOR formatted SENML ")
-	doXMLPtr  := flag.Bool("xml",  false, "output XML formatted SENML ")
+	doXmlPtr  := flag.Bool("xml",  false, "output XML formatted SENML ")
+	doMpackPtr := flag.Bool("mpack", false, "output MessagePack formatted SENML ")
 	
-	doIJSONPtr := flag.Bool("ijson", false, "input JSON formatted SENML ")
-	doIXMLPtr := flag.Bool("ixml", false, "input XML formatted SENML ")
-	doICBORPtr := flag.Bool("icbor", false, "input CBOR formatted SENML ")
+	doIJsonPtr := flag.Bool("ijson", false, "input JSON formatted SENML ")
+	doIXmlPtr := flag.Bool("ixml", false, "input XML formatted SENML ")
+	doICborPtr := flag.Bool("icbor", false, "input CBOR formatted SENML ")
+	doIMpackPtr := flag.Bool("impack", false, "input MessagePack formatted SENML ")
 	
 	flag.Parse()
 
@@ -78,36 +80,48 @@ func main() {
 	s.Xmlns = "urn:ietf:params:xml:ns:senml"
 	
 	// parse the input JSON
-	if ( *doIJSONPtr ) {
+	if ( *doIJsonPtr ) {
 		err = json.Unmarshal(msg, &s.Records )
 		if err != nil {
-			fmt.Printf("error parsing JSON XML %v\n",err)
+			fmt.Printf("error parsing JSON SenML %v\n",err)
 			os.Exit( 1 )
 		}
 	}
 	
 	// parse the input XML
-	if ( *doIXMLPtr ) {
+	if ( *doIXmlPtr ) {
 		err = xml.Unmarshal(msg, &s)
 		if err != nil {
-			fmt.Printf("error parsing JSON XML %v\n",err)
+			fmt.Printf("error parsing XML SenML %v\n",err)
 			os.Exit( 1 )
 		}
 	}
 
 	// parse the input CBOR
-	if ( *doICBORPtr ) {
+	if ( *doICborPtr ) {
 		var cborHandle codec.Handle = new( codec.CborHandle )
 		var decoder *codec.Decoder = codec.NewDecoderBytes( msg, cborHandle )
 		err = decoder.Decode( &s.Records )
 			if err != nil {
-			fmt.Printf("error parsing JSON XML %v\n",err)
+			fmt.Printf("error parsing CBOR SenML %v\n",err)
+			os.Exit( 1 )
+		}
+	}
+
+	// parse the input MPACK
+	// spec for MessagePack is at https://github.com/msgpack/msgpack/
+	if ( *doIMpackPtr ) {
+		var mpackHandle codec.Handle = new( codec.MsgpackHandle )
+		var decoder *codec.Decoder = codec.NewDecoderBytes( msg, mpackHandle )
+		err = decoder.Decode( &s.Records )
+			if err != nil {
+			fmt.Printf("error parsing MPACK SenML %v\n",err)
 			os.Exit( 1 )
 		}
 	}
 	
 	// ouput JSON version 
-	if ( *doJSONPtr ) {
+	if ( *doJsonPtr ) {
 		var d []byte;
 		if ( *doIndentPtr ) {
 			d,err = json.MarshalIndent( s.Records, "", "  " )
@@ -115,14 +129,14 @@ func main() {
 			d,err = json.Marshal( s.Records )
 		}
 		if err != nil {
-			fmt.Printf("error encoding json %v\n",err)
+			fmt.Printf("error encoding JSON SenML %v\n",err)
 			os.Exit( 1 )
 		}
 		fmt.Printf("%s\n", d)
 	}
 
 	// output a XML version 
-	if ( *doXMLPtr ) {
+	if ( *doXmlPtr ) {
 		var d []byte;
 		if ( *doIndentPtr ) {
 			d,err = xml.MarshalIndent( s, "", "  " )
@@ -130,7 +144,7 @@ func main() {
 			d,err = xml.Marshal( s )
 		}
 		if err != nil {
-			fmt.Printf("error encoding xml %v\n",err);	
+			fmt.Printf("error encoding XML SenML %v\n",err);	
 		}
 		fmt.Printf("%s\n", d)
 	}
@@ -142,7 +156,20 @@ func main() {
 		var encoder *codec.Encoder = codec.NewEncoderBytes( &d, cborHandle)
 		err = encoder.Encode( s.Records )
 		if err != nil {
-			fmt.Printf("error encoding json %v\n",err)
+			fmt.Printf("error encoding CBOR SenML %v\n",err)
+			os.Exit( 1 )
+		}
+		fmt.Printf("%s\n", d)
+	}
+
+	// output a MPACK version 
+	if ( *doMpackPtr ) {
+		var d []byte 
+		var mpackHandle codec.Handle = new(codec.MsgpackHandle)
+		var encoder *codec.Encoder = codec.NewEncoderBytes( &d, mpackHandle)
+		err = encoder.Encode( s.Records )
+		if err != nil {
+			fmt.Printf("error encoding MPACK SenML %v\n",err)
 			os.Exit( 1 )
 		}
 		fmt.Printf("%s\n", d)
