@@ -392,22 +392,48 @@ func outputData( data []byte ) ( error ) {
 		}
 
 		// read a length
-		bufLen  := make( []byte, 4 )
-		n,err = kafkaConn.Read( bufLen )
+		lenBuf  := make( []byte, 4 )
+		n,err = kafkaConn.Read( lenBuf )
 			if err != nil {
 			println( "Read from kafka got error", err.Error() )
 			return err
 		}
 		if n != 4 {
 			println( "Read got wrong length n=",n )
-			panic( "kafka write problem" )
+			panic( "kafka write problem 1" )
 		}
 
-		// TODO response looks like 
-		//00000000  00 00 00 24 00 00 00 01  00 00 00 01 00 04 74 65 ...$.... ......te
-		//00000010  73 74 00 00 00 01 00 00  00 00 00 00 00 00 00 00 st...... ........
-		//00000020  00 00 00 0d 00 00 00 00                          ........
-		
+		respLen := binary.BigEndian.Uint32(lenBuf)
+		buf := make( []byte, respLen )
+
+		n,err = kafkaConn.Read( buf )
+			if err != nil {
+			println( "Read 2 from kafka got error", err.Error() )
+			return err
+		}
+		if n != int(respLen) {
+			println( "Read 2 got wrong length n=",n )
+			panic( "kafka read problem 2" )
+		}
+
+		l = 0
+		respReqID := binary.BigEndian.Uint32(buf[l:]); l+= 4 	         // CorrelationID int32
+		respNumTopics := binary.BigEndian.Uint32(buf[l:]); l+= 4         // Aray Length - int32 (for each topic)
+		for t:=uint32(0); t<respNumTopics; t += 1 {
+			topicLen := int(binary.BigEndian.Uint16(buf[l:])); l+= 2          // TopicName length - int16
+			topic := string( buf[l:l+topicLen] ); l += topicLen          // Topic string
+			respNumPartitions := binary.BigEndian.Uint32(buf[l:]); l+= 4 // Array length - int32 (for each partition)
+			for p:=uint32(0); p<respNumPartitions; p += 1 {
+				respPartition := binary.BigEndian.Uint32(buf[l:]); l+= 4 // Partition - int32
+				respError := binary.BigEndian.Uint16(buf[l:]); l+= 2	 // Error code - int16 ( 0 is no error)
+				respOffset := binary.BigEndian.Uint64(buf[l:]); l+= 8 	 // offset - int64
+
+				if respError != 0 {
+					println( "Kafka response err=",respError,
+						" part=",respPartition, " topic=", topic, " respReqID=",respReqID, " respOffset=",respOffset  )
+				}
+			}
+		}
 	}
 	
 	if len(*postUrl) != 0  {
