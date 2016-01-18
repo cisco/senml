@@ -10,7 +10,17 @@ senmlCat -json -i data.json > data.xml
 senmlCat.go -ijson -cbor data.json > data.cbor 
 
 ## convert to Excel spreadsheet CSV file
-go run senmlCat.go -expand -ijsons -csv -print data.json > foo.csv
+senmlCat -expand -ijsons -csv -print data.json > foo.csv
 
 Note that this moves times to excel times that are days since 1900
+
+## listen for posts of SenML in JSON and send to influxdb
+
+This listens on port 880 then writes to an influx instance at localhost where to
+the database called "junk"
+
+The -expand is needed to expand base values into each line of the Line Protocol
+
+senmlCat -ijsons -http 8880 -expand -linp -print -post http://localhost:8086/write?db=junk
+
 

@@ -71,6 +71,9 @@ type SenML struct {
 	Records []SenMLRecord  ` xml:"senml"`
 }
 
+
+var doVerbosePtr = flag.Bool("v", false, "verbose")
+
 var doIndentPtr = flag.Bool("i", false, "indent output")
 var doTimePtr = flag.Bool("time", false, "time parsing of input")
 var doSizePtr = flag.Bool("size", false, "report size of output")
@@ -81,7 +84,7 @@ var httpPort = flag.Int("http", 0, "port to list for http on")
 var postUrl = flag.String("post", "", "URL to HTTP POST output to")
 var kafkaUrl = flag.String("kafka", "", "URL to for Apache Kafka Broker to send data to")
 
-var kafkaTopic = flag.String("topic", "senml", "Apache Kafka topic")
+var topic = flag.String("topic", "senml", "Apache Kafka topic or InfluxDB series name ")
 
 var doJsonPtr = flag.Bool("json", false, "output JSON formatted SenML ")
 var doCborPtr = flag.Bool("cbor", false, "output CBOR formatted SenML ")
@@ -95,6 +98,7 @@ var doIJsonLinePtr = flag.Bool("ijsonl", false, "input JSON formatted SenML line
 var doIXmlPtr = flag.Bool("ixml", false, "input XML formatted SenML ")
 var doICborPtr = flag.Bool("icbor", false, "input CBOR formatted SenML ")
 var doIMpackPtr = flag.Bool("impack", false, "input MessagePack formatted SenML ")
+
 
 var kafkaConn net.Conn = nil
 var kafkaReqNumber uint32 = 1
@@ -136,16 +140,17 @@ func decodeSenML( msg []byte ) (SenML, error) {
 	s.XMLName = nil
 	s.Xmlns = "urn:ietf:params:xml:ns:senml"
 	
-	// parse the input JSON
+	// parse the input JSON stream 
 	if ( *doIJsonStreamPtr ) {
 		err = json.Unmarshal(msg, &s.Records )
 		if err != nil {
-			fmt.Println("error parsing JSON SenML Stream",err)
+			fmt.Println("error parsing JSON SenML Stream: ",err)
+			fmt.Println("msg=",msg)
 			return s,err
 		}
 	}
 
-	// parse the input JSON
+	// parse the input JSON line
 	if ( *doIJsonLinePtr ) {
 		lines := strings.Split( string(msg), "\n" )
 		for _,line := range( lines ) {
@@ -153,7 +158,7 @@ func decodeSenML( msg []byte ) (SenML, error) {
 			if ( len(line) > 5 ) {
 				err = json.Unmarshal( []byte(line), r )
 				if err != nil {
-					fmt.Println("error parsing JSON SenML Line",err)
+					fmt.Println("error parsing JSON SenML Line: ",err)
 					return s,err
 				}
 				s.Records = append( s.Records , *r )
@@ -275,12 +280,13 @@ func encodeSenML( s SenML ) ( []byte, error ) {
 		var lines string
 		for _,r := range s.Records {
 			if r.Value != nil {
-				lines += fmt.Sprintf( "%s", r.Name )
+				lines += fmt.Sprintf( "%s",  string(*topic) )
+				lines += fmt.Sprintf( ",n=%s", r.Name )
 				if len( r.Unit ) > 0 {
 					lines += fmt.Sprintf( ",u=%s", r.Unit )
 				} 
 				lines += fmt.Sprintf( " value=%f", *r.Value )
-				lines += fmt.Sprintf( " %f\n", r.Time )
+				lines += fmt.Sprintf( " %d\n", int64( r.Time * 1.0e9 ) )
 			}
 		}
 		data = []byte( lines )
@@ -362,13 +368,13 @@ func outputData( data []byte ) ( error ) {
 	if kafkaConn != nil  {
 		//fmt.Println( "sending to Kafka=<" + string(data) + ">" )
 
-		topic := []byte( string(*kafkaTopic) )
+		kTopic := []byte( string(*topic) )
 		clientName := []byte( "SenMLCat-0.1" )
 		partition := 0 // TODO - does this need to be settable from CLI 
 		reqID := kafkaReqNumber; kafkaReqNumber += 1
 		
 		clientNameLen  := len( clientName ) 
-		topicLen := len( topic ) 
+		topicLen := len( kTopic ) 
 		dataLen := len( data ) 
 		
 		var totalLen int = 8 + 56 + clientNameLen + topicLen + dataLen // TODO 
@@ -391,7 +397,7 @@ func outputData( data []byte ) ( error ) {
 		binary.BigEndian.PutUint32(msg[l:], uint32( 1500 ) ); l += 4 // Timeout - int32 - in milli seconds
 		binary.BigEndian.PutUint32(msg[l:], uint32( 1 ) ); l += 4  // Array Lenght (for each TopicName) 
 		binary.BigEndian.PutUint16(msg[l:], uint16( topicLen ) ); l += 2 // topic length - int16
-		copy( msg[l:], topic ); l += topicLen // topic 
+		copy( msg[l:], kTopic ); l += topicLen // topic 
 		binary.BigEndian.PutUint32(msg[l:], uint32( 1 ) ); l += 4  // Array Length (for each Partition) 
 		binary.BigEndian.PutUint32(msg[l:], uint32( partition ) ); l += 4 // Partion - int32
 		msgSetLenLoc := l; l += 4 // msg set size - int32
@@ -566,12 +572,18 @@ func httpReqHandler(w http.ResponseWriter, r *http.Request) {
 	//fmt.Println( "HTTP request to ",  r.URL.Path )
 	//fmt.Println( "Method: ",  r.Method )
 
-	defer r.Body.Close()
-	body, err := ioutil.ReadAll( r.Body)
+	// defer r.Body.Close() // not needed
+
+	
+	body, err := ioutil.ReadAll( r.Body )
 	if err != nil {
 		panic( "Problem reading HTTP body" )
 	}
 
+	if ( *doVerbosePtr ) {
+		fmt.Println( "HTTP Body: ",  body )
+	}
+	
 	err = processData( body )
 	if err != nil {
 		http.Error(w, err.Error(), 400)
