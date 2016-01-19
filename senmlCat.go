@@ -285,7 +285,7 @@ func encodeSenML( s SenML ) ( []byte, error ) {
 				if len( r.Unit ) > 0 {
 					lines += fmt.Sprintf( ",u=%s", r.Unit )
 				} 
-				lines += fmt.Sprintf( " value=%f", *r.Value )
+				lines += fmt.Sprintf( " v=%f", *r.Value )
 				lines += fmt.Sprintf( " %d\n", int64( r.Time * 1.0e9 ) )
 			}
 		}
