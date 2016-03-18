@@ -43,17 +43,25 @@ import (
 // curl --data-binary @dagta.cbor http://localhost:8001/data
 
 
+type LinkRecord struct {
+	Foo string  `json:"foo,omitempty"  xml:"foo,attr,omitempty"`
+	Bar string  `json:"bar,omitempty"  xml:"bar,attr,omitempty"`
+	HRef string  `json:"href,omitempty"  xml:"href,attr,omitempty"`
+}
+
 type SenMLRecord struct {
 	XMLName *bool `json:"_,omitempty" xml:"senml"`
 	
 	BaseName string `json:"bn,omitempty"  xml:"bn,attr,omitempty"`
-	BaseTime float64 `json:"bt,omitempty"  xml:"bt,attr,omitempty"`
+	BaseTime int64 `json:"bt,omitempty"  xml:"bt,attr,omitempty"`
 	BaseUnit string `json:"bu,omitempty"  xml:"bu,attr,omitempty"`
 	Version int `json:"ver,omitempty"  xml:"ver,attr,omitempty"`
+
+	Link []LinkRecord  `json:"l,omitempty"  xml:"l,omitempty"`
 	
 	Name string `json:"n,omitempty"  xml:"n,attr,omitempty"`
 	Unit string `json:"u,omitempty"  xml:"u,attr,omitempty"`
-	Time float64 `json:"t,omitempty"  xml:"t,attr,omitempty"`
+	Time int64 `json:"t,omitempty"  xml:"t,attr,omitempty"`
 	UpdateTime int `json:"ut,omitempty"  xml:"ut,attr,omitempty"`
 
 	Value *float64 `json:"v,omitempty"  xml:"v,attr,omitempty"`
@@ -301,7 +309,7 @@ func encodeSenML( s SenML ) ( []byte, error ) {
 
 func expandSenML( senml SenML) ( SenML ){
 	var bname string = ""
-	var btime float64 = 0.0
+	var btime int64 = 0
 	var bunit string = ""
 	var ver = 3
 	var ret SenML
@@ -344,7 +352,7 @@ func expandSenML( senml SenML) ( SenML ){
 		if  ( r.Time <= 0 )	{
 			// convert to absolute time
 			var now int64 = time.Now().UnixNano()
-			var t float64 = float64( now ) / 1.0e9
+			var t int64 = now  / 1000000000
 			r.Time = t + r.Time
 		}
 		
