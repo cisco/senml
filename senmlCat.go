@@ -53,15 +53,15 @@ type SenMLRecord struct {
 	XMLName *bool `json:"_,omitempty" xml:"senml"`
 	
 	BaseName string `json:"bn,omitempty"  xml:"bn,attr,omitempty"`
-	BaseTime int64 `json:"bt,omitempty"  xml:"bt,attr,omitempty"`
+	BaseTime float64 `json:"bt,omitempty"  xml:"bt,attr,omitempty"`
 	BaseUnit string `json:"bu,omitempty"  xml:"bu,attr,omitempty"`
-	Version int `json:"ver,omitempty"  xml:"ver,attr,omitempty"`
+	Version int `json:"bver,omitempty"  xml:"bver,attr,omitempty"`
 
 	Link []LinkRecord  `json:"l,omitempty"  xml:"l,omitempty"`
 	
 	Name string `json:"n,omitempty"  xml:"n,attr,omitempty"`
 	Unit string `json:"u,omitempty"  xml:"u,attr,omitempty"`
-	Time int64 `json:"t,omitempty"  xml:"t,attr,omitempty"`
+	Time float64 `json:"t,omitempty"  xml:"t,attr,omitempty"`
 	UpdateTime int `json:"ut,omitempty"  xml:"ut,attr,omitempty"`
 
 	Value *float64 `json:"v,omitempty"  xml:"v,attr,omitempty"`
@@ -309,7 +309,7 @@ func encodeSenML( s SenML ) ( []byte, error ) {
 
 func expandSenML( senml SenML) ( SenML ){
 	var bname string = ""
-	var btime int64 = 0
+	var btime float64 = 0
 	var bunit string = ""
 	var ver = 3
 	var ret SenML
@@ -352,8 +352,8 @@ func expandSenML( senml SenML) ( SenML ){
 		if  ( r.Time <= 0 )	{
 			// convert to absolute time
 			var now int64 = time.Now().UnixNano()
-			var t int64 = now  / 1000000000
-			r.Time = t + r.Time
+			var t int64 = now  / 1000000000.0
+			r.Time = float64( t ) + r.Time 
 		}
 		
 		if (r.Value != nil) || ( len(r.StringValue)>0) || (r.BoolValue != nil) {
