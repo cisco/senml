@@ -370,7 +370,7 @@ func outputData( data []byte ) ( error ) {
 	// print the output
 
 	if *doPrintPtr {
-		fmt.Println( string( data ) )
+		fmt.Print( string( data ) )
 	}
 
 	if kafkaConn != nil  {
