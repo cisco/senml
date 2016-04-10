@@ -1,21 +1,18 @@
 package main
 
 import (
+	"github.com/cisco/senml" // TODO 
 	"bytes"
 	"encoding/binary"
-	"encoding/json"
-	"encoding/xml"
 	"errors"
 	"flag"
 	"fmt"
-	"github.com/ugorji/go/codec"
 	"hash/crc32"
 	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
 	"strconv"
-	"strings"
 	"time"
 )
 
@@ -42,49 +39,9 @@ import (
 // test http with something like:  curl --data @data.json http://localhost:8000/data
 // curl --data-binary @dagta.cbor http://localhost:8001/data
 
-
-type LinkRecord struct {
-	Foo string  `json:"foo,omitempty"  xml:"foo,attr,omitempty"`
-	Bar string  `json:"bar,omitempty"  xml:"bar,attr,omitempty"`
-	HRef string  `json:"href,omitempty"  xml:"href,attr,omitempty"`
-}
-
-type SenMLRecord struct {
-	XMLName *bool `json:"_,omitempty" xml:"senml"`
-	
-	BaseName string `json:"bn,omitempty"  xml:"bn,attr,omitempty"`
-	BaseTime float64 `json:"bt,omitempty"  xml:"bt,attr,omitempty"`
-	BaseUnit string `json:"bu,omitempty"  xml:"bu,attr,omitempty"`
-	Version int `json:"bver,omitempty"  xml:"bver,attr,omitempty"`
-
-	Link []LinkRecord  `json:"l,omitempty"  xml:"l,omitempty"`
-	
-	Name string `json:"n,omitempty"  xml:"n,attr,omitempty"`
-	Unit string `json:"u,omitempty"  xml:"u,attr,omitempty"`
-	Time float64 `json:"t,omitempty"  xml:"t,attr,omitempty"`
-	UpdateTime int `json:"ut,omitempty"  xml:"ut,attr,omitempty"`
-
-	Value *float64 `json:"v,omitempty"  xml:"v,attr,omitempty"`
-	StringValue string `json:"vs,omitempty"  xml:"vs,attr,omitempty"`
-	BoolValue *bool `json:"vb,omitempty"  xml:"vb,attr,omitempty"`
-	
-	Sum *float64 `json:"s,omitempty"  xml:"sum,,attr,omitempty"`
-}  
-
-
-type SenML struct {
-	XMLName *bool `json:"_,omitempty" xml:"sensml"`
-	Xmlns string `json:"_,omitempty" xml:"xmlns,attr"`
-	
-	Records []SenMLRecord  ` xml:"senml"`
-}
-
-
 var doVerbosePtr = flag.Bool("v", false, "verbose")
 
 var doIndentPtr = flag.Bool("i", false, "indent output")
-var doTimePtr = flag.Bool("time", false, "time parsing of input")
-var doSizePtr = flag.Bool("size", false, "report size of output")
 var doPrintPtr = flag.Bool("print", false, "print output to stdout")
 var doExpandPtr = flag.Bool("expand", false, "expand SenML records")
 
@@ -107,262 +64,26 @@ var doIXmlPtr = flag.Bool("ixml", false, "input XML formatted SenML ")
 var doICborPtr = flag.Bool("icbor", false, "input CBOR formatted SenML ")
 var doIMpackPtr = flag.Bool("impack", false, "input MessagePack formatted SenML ")
 
-
 var kafkaConn net.Conn = nil
 var kafkaReqNumber uint32 = 1
 
-func decodeSenMLTimed( msg []byte ) (SenML, error) {
-	var senml SenML
+
+func decodeSenMLTimed( msg []byte ) ( gosenml.SenML, error) {
+	var senml gosenml.SenML
 	var err error
 	
-	startParseTime1 := time.Now();
-	endParseTime1 := time.Now();
-	var loops int = 0
-	if ( *doTimePtr ) {
-		loops = 1000
+	var format gosenml.Format = gosenml.JSON
+	switch {
+	case *doIJsonStreamPtr: format = gosenml.JSON
+	case *doIJsonLinePtr: format = gosenml.JSON
+	case *doICborPtr: format = gosenml.CBOR
+	case *doIXmlPtr: format = gosenml.XML
+	case *doIMpackPtr: format = gosenml.MPACK
 	}
-	for i := -1; i < loops; i++ {
-		if i == 0 {
-			startParseTime1 = time.Now();
-		}
-		
-		senml,err = decodeSenML( msg  )
-	}
-	endParseTime1 = time.Now()
 	
-	if ( *doTimePtr ) {
-		parseTime1 := endParseTime1.Sub( startParseTime1 )
-		fmt.Printf("Parse time %v us or %v msg/s \n",
-			float64( parseTime1.Nanoseconds() ) / ( float64( loops )  * 1.0e3 ),
-			int64( 1.0e9 * float64( loops )  / float64( parseTime1.Nanoseconds() ) ) )
-	}
-
+	senml,err = gosenml.DecodeSenML( msg  ,format ) // TODO 
+	
 	return senml,err
-}
-
-
-func decodeSenML( msg []byte ) (SenML, error) {
-	var s SenML
-	var err error
-	
-	s.XMLName = nil
-	s.Xmlns = "urn:ietf:params:xml:ns:senml"
-	
-	// parse the input JSON stream 
-	if ( *doIJsonStreamPtr ) {
-		err = json.Unmarshal(msg, &s.Records )
-		if err != nil {
-			fmt.Println("error parsing JSON SenML Stream: ",err)
-			fmt.Println("msg=",msg)
-			return s,err
-		}
-	}
-
-	// parse the input JSON line
-	if ( *doIJsonLinePtr ) {
-		lines := strings.Split( string(msg), "\n" )
-		for _,line := range( lines ) {
-			r := new( SenMLRecord )
-			if ( len(line) > 5 ) {
-				err = json.Unmarshal( []byte(line), r )
-				if err != nil {
-					fmt.Println("error parsing JSON SenML Line: ",err)
-					return s,err
-				}
-				s.Records = append( s.Records , *r )
-			}
-		}
-	}
-	
-	// parse the input XML
-	if ( *doIXmlPtr ) {
-		err = xml.Unmarshal(msg, &s)
-		if err != nil {
-			fmt.Println("error parsing XML SenML",err)
-			return s,err
-		}
-	}
-	
-	// parse the input CBOR
-	if ( *doICborPtr ) {
-		var cborHandle codec.Handle = new( codec.CborHandle )
-		var decoder *codec.Decoder = codec.NewDecoderBytes( msg, cborHandle )
-		err = decoder.Decode( &s.Records )
-		if err != nil {
-			fmt.Println("error parsing CBOR SenML",err)
-			return s,err
-		}
-	}
-	
-	// parse the input MPACK
-	// spec for MessagePack is at https://github.com/msgpack/msgpack/
-	if ( *doIMpackPtr ) {
-		var mpackHandle codec.Handle = new( codec.MsgpackHandle )
-		var decoder *codec.Decoder = codec.NewDecoderBytes( msg, mpackHandle )
-		err = decoder.Decode( &s.Records )
-		if err != nil {
-			fmt.Println("error parsing MPACK SenML",err)
-			return s,err
-		}
-	}
-		
-	return s , nil 
-}
-
-func encodeSenML( s SenML ) ( []byte, error ) {
-	var data []byte
-	var err error
-		
-	// ouput JSON version 
-	if ( *doJsonPtr ) {
-		if ( *doIndentPtr ) {
-			data, err = json.MarshalIndent( s.Records, "", "  " )
-		} else {
-			data, err = json.Marshal( s.Records )
-		}
-		if err != nil {
-			fmt.Println("error encoding JSON SenML",err)
-			return nil, err
-		}
-	}
-
-	// output a XML version 
-	if ( *doXmlPtr ) {
-		if ( *doIndentPtr ) {
-			data, err = xml.MarshalIndent( s, "", "  " )
-		} else {
-			data, err = xml.Marshal( s )
-		}
-		if err != nil {
-			fmt.Println("error encoding XML SenML",err);
-			return nil, err
-		}
-	}
-
-	// output a CSV version 
-	if ( *doCsvPtr ) {
-		var lines string
-		for _,r := range s.Records {
-			if r.Value != nil {
-				lines += fmt.Sprintf( "%s,", r.Name )
-				lines += fmt.Sprintf( "%f,", (r.Time / (24.0*3600.0) ) + 25569.0 ) // excell time in days since 1900, unix seconds since 1970
-				// ( 1970 is 25569 days after 1900 )
-				lines += fmt.Sprintf( "%f", *r.Value )
-				if len( r.Unit ) > 0 {
-					lines += fmt.Sprintf( ",%s", r.Unit )
-				} 
-				lines += fmt.Sprintf( "\r\n" )
-			}
-		}
-		data = []byte( lines )
-		
-		if err != nil {
-			fmt.Println("error encoding CSV SenML",err);
-			return nil, err
-		}
-	}
-	// output a CBOR version 
-	if ( *doCborPtr ) {
-		var cborHandle codec.Handle = new(codec.CborHandle)
-		var encoder *codec.Encoder = codec.NewEncoderBytes( &data, cborHandle)
-		err = encoder.Encode( s.Records )
-		if err != nil {
-			fmt.Println("error encoding CBOR SenML",err)
-			return nil, err
-		}
-	}
-
-	// output a MPACK version 
-	if ( *doMpackPtr ) {
-		var mpackHandle codec.Handle = new(codec.MsgpackHandle)
-		var encoder *codec.Encoder = codec.NewEncoderBytes( &data, mpackHandle)
-		err = encoder.Encode( s.Records )
-		if err != nil {
-			fmt.Println("error encoding MPACK SenML",err)
-			return nil, err
-		}
-
-	}
-
-	if ( *doLinpPtr ) {
-		var lines string
-		for _,r := range s.Records {
-			if r.Value != nil {
-				lines += fmt.Sprintf( "%s",  string(*topic) )
-				lines += fmt.Sprintf( ",n=%s", r.Name )
-				if len( r.Unit ) > 0 {
-					lines += fmt.Sprintf( ",u=%s", r.Unit )
-				} 
-				lines += fmt.Sprintf( " v=%f", *r.Value )
-				lines += fmt.Sprintf( " %d\n", int64( r.Time * 1.0e9 ) )
-			}
-		}
-		data = []byte( lines )
-	}
-	
-	if ( *doSizePtr ) {
-		fmt.Println("Output message size = ", len( data ) )
-	}
-
-	return data , nil
-}
-
-func expandSenML( senml SenML) ( SenML ){
-	var bname string = ""
-	var btime float64 = 0
-	var bunit string = ""
-	var ver = 3
-	var ret SenML
-
-	var totalRecords int = 0
-	for _,r := range senml.Records {
-		if (r.Value != nil) || ( len(r.StringValue)>0) || (r.BoolValue != nil) {
-			totalRecords += 1
-		}
-	}
-	
-	ret.XMLName = senml.XMLName
-	ret.Xmlns = senml.Xmlns
-	ret.Records = make( []SenMLRecord, totalRecords )
-	var numRecords =0
-	
-	for _,r := range senml.Records {
-		if r.BaseTime != 0 {
-			btime = r.BaseTime
-		}
-		if r.Version != 0 {
-			ver = r.Version
-		}
-		if len(r.BaseUnit) >0 {
-			bunit = r.BaseUnit
-		}
-		if len(r.BaseName) >0 {
-			bname = r.BaseName
-		}
-		r.BaseTime = 0
-		r.BaseUnit = ""
-		r.BaseName = ""
-		r.Name = bname + r.Name
-		r.Time = btime + r.Time
-		if len(r.Unit) == 0 {
-			r.Unit = bunit
-		}
-		r.Version = ver
-
-		if  ( r.Time <= 0 )	{
-			// convert to absolute time
-			var now int64 = time.Now().UnixNano()
-			var t int64 = now  / 1000000000.0
-			r.Time = float64( t ) + r.Time 
-		}
-		
-		if (r.Value != nil) || ( len(r.StringValue)>0) || (r.BoolValue != nil) {
-			ret.Records[numRecords] = r
-			numRecords += 1
-		}
-	}
-
-	return ret
 }
 
 
@@ -541,7 +262,7 @@ func outputData( data []byte ) ( error ) {
 
 
 func processData( dataIn []byte ) ( error ) {
-	var senml SenML
+	var senml gosenml.SenML
 	var err error
 	
 	//fmt.Println( "DataIn:", dataIn )
@@ -552,19 +273,35 @@ func processData( dataIn []byte ) ( error ) {
 		return err
 	}
 
-	//fmt.Println( "Senml:", senml.Records )
+	//fmt.Println( "Senml:", gosenml.Records )
 	if *doExpandPtr {
-		senml = expandSenML( senml )
+		senml = gosenml.ExpandSenML( senml )
+	}
+
+	var dataOut []byte;
+	
+	options := gosenml.OutputOptions{}
+	if *doIndentPtr {
+		options.PrettyPrint = *doIndentPtr
+	}
+	options.Topic = string( *topic )
+	
+	
+	var format gosenml.Format = gosenml.JSON
+	switch {
+	case *doJsonPtr: format = gosenml.JSON
+	case *doCborPtr: format = gosenml.CBOR
+	case *doXmlPtr: format = gosenml.XML
+	case *doCsvPtr: format = gosenml.CSV
+	case *doMpackPtr: format = gosenml.MPACK
+	case *doLinpPtr: format = gosenml.LINEP
 	}
 	
-	var dataOut []byte;
-	dataOut, err = encodeSenML( senml )
+	dataOut, err = gosenml.EncodeSenML( senml,format, options )
 	if err != nil {
 		fmt.Println( "Encode of SenML failed" )
 		return err
 	}
-
-	//fmt.Println( "DataOut:", dataOut )
 
 	err = outputData( dataOut )
 	if err != nil {
@@ -613,20 +350,8 @@ func main() {
 		defer kafkaConn.Close()
 	}
 	
-	if  *httpPort != 0 {
-		http.HandleFunc("/", httpReqHandler)
-		http.ListenAndServe(":"+strconv.Itoa(*httpPort), nil)
-	} else {
-		// load the input  
-		msg, err := ioutil.ReadFile( flag.Arg(0) )
-		if err != nil {
-			fmt.Println("error reading SenML file",err)
-			os.Exit( 1 )
-		}	
-		//fmt.Println(string(msg))
-		
-		err = processData( msg )
-	}
+	http.HandleFunc("/", httpReqHandler)
+	http.ListenAndServe(":"+strconv.Itoa(*httpPort), nil)
 }
 
 
