@@ -26,11 +26,6 @@ type OutputOptions struct {
 	Topic       string
 }
 
-type LinkRecord struct {
-	Foo  string `json:"foo,omitempty"  xml:"foo,attr,omitempty"` // TODO remove this and next
-	Bar  string `json:"bar,omitempty"  xml:"bar,attr,omitempty"`
-	HRef string `json:"href,omitempty"  xml:"href,attr,omitempty"`
-}
 
 type SenMLRecord struct {
 	XMLName *bool `json:"_,omitempty" xml:"senml"`
@@ -40,7 +35,7 @@ type SenMLRecord struct {
 	BaseUnit    string  `json:"bu,omitempty"  xml:"bu,attr,omitempty"`
 	BaseVersion int     `json:"bver,omitempty"  xml:"bver,attr,omitempty"`
 
-	Link []LinkRecord `json:"l,omitempty"  xml:"l,omitempty"`
+	Link       string  `json:"l,omitempty"  xml:"l,attr,omitempty"`
 
 	Name       string  `json:"n,omitempty"  xml:"n,attr,omitempty"`
 	Unit       string  `json:"u,omitempty"  xml:"u,attr,omitempty"`
