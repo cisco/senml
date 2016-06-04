@@ -8,10 +8,10 @@
 	<key>RunAtLoad</key>
 	<true/>
     <key>Label</key>
-    <string>com.fluffyhome.senmlcat</string>
+    <string>com.cisco.senmlServer</string>
     <key>ProgramArguments</key>
     <array>
-      <string>/usr/local/bin/senmlCat</string>
+      <string>/usr/local/bin/senmlServer</string>
       <string>-ijsons</string>
       <string>-http</string>
       <string>8880</string>
@@ -20,7 +20,7 @@
       <string>-topic</string>
       <string>senml</string>
       <string>-post</string>
-      <string>http://10.1.3.254:8086/write?db=fh2</string>
+      <string>http://10.1.3.254:9086/write?db=fh2</string>
     </array>
   </dict>
 </plist>

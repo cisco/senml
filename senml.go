@@ -2,11 +2,13 @@
 package senml
 
 import (
+	"bytes"
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
 	"github.com/ugorji/go/codec"
-	//"strings"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -19,13 +21,13 @@ const (
 	CSV
 	MPACK
 	LINEP
+	JSONLINE
 )
 
 type OutputOptions struct {
 	PrettyPrint bool
 	Topic       string
 }
-
 
 type SenMLRecord struct {
 	XMLName *bool `json:"_,omitempty" xml:"senml"`
@@ -35,7 +37,7 @@ type SenMLRecord struct {
 	BaseUnit    string  `json:"bu,omitempty"  xml:"bu,attr,omitempty"`
 	BaseVersion int     `json:"bver,omitempty"  xml:"bver,attr,omitempty"`
 
-	Link       string  `json:"l,omitempty"  xml:"l,attr,omitempty"`
+	Link string `json:"l,omitempty"  xml:"l,attr,omitempty"`
 
 	Name       string  `json:"n,omitempty"  xml:"n,attr,omitempty"`
 	Unit       string  `json:"u,omitempty"  xml:"u,attr,omitempty"`
@@ -76,20 +78,20 @@ func Decode(msg []byte, format Format) (SenML, error) {
 			return s, err
 		}
 
-	//case format == JSONLINE:
-	//	// parse the input JSON line
-	//	lines := strings.Split(string(msg), "\n")
-	//	for _, line := range lines {
-	//		r := new(SenMLRecord)
-	//		if len(line) > 5 {
-	//			err = json.Unmarshal([]byte(line), r)
-	//			if err != nil {
-	//				fmt.Println("error parsing JSON SenML Line: ", err)
-	//				return s, err
-	//			}
-	//			s.Records = append(s.Records, *r)
-	//		}
-	//	}
+	case format == JSONLINE:
+		// parse the input JSON line
+		lines := strings.Split(string(msg), "\n")
+		for _, line := range lines {
+			r := new(SenMLRecord)
+			if len(line) > 5 {
+				err = json.Unmarshal([]byte(line), r)
+				if err != nil {
+					fmt.Println("error parsing JSON SenML Line: ", err)
+					return s, err
+				}
+				s.Records = append(s.Records, *r)
+			}
+		}
 
 	case format == XML:
 		// parse the input XML
@@ -167,6 +169,7 @@ func Encode(s SenML, format Format, options OutputOptions) ([]byte, error) {
 		var lines string
 		for _, r := range s.Records {
 			if r.Value != nil {
+				// TODO - replace sprintf with bytes.Buffer
 				lines += fmt.Sprintf("%s,", r.Name)
 				// excell time in days since 1900, unix seconds since 1970
 				// ( 1970 is 25569 days after 1900 )
@@ -206,20 +209,38 @@ func Encode(s SenML, format Format, options OutputOptions) ([]byte, error) {
 
 	case format == LINEP:
 		// ouput Line Protocol
-		var lines string
+		var buf bytes.Buffer
 		for _, r := range s.Records {
 			if r.Value != nil {
-				lines += fmt.Sprintf("%s", string(options.Topic))
-				lines += fmt.Sprintf(",n=%s", r.Name)
-				if len(r.Unit) > 0 {
-					lines += fmt.Sprintf(",u=%s", r.Unit)
-				}
-				lines += fmt.Sprintf(" v=%f", *r.Value)
-				lines += fmt.Sprintf(" %d\n", int64(r.Time*1.0e9))
+				buf.WriteString(options.Topic)
+				buf.WriteString(",n=")
+				buf.WriteString(r.Name)
+				buf.WriteString(",u=")
+				buf.WriteString(r.Unit)
+				buf.WriteString(" v=")
+				buf.WriteString(strconv.FormatFloat(*r.Value, 'f', -1, 64))
+				buf.WriteString(" ")
+				buf.WriteString(strconv.FormatInt(int64(r.Time*1.0e9), 10))
+				buf.WriteString("\n")
 			}
 		}
-		data = []byte(lines)
+		data = buf.Bytes()
 
+	case format == JSONLINE:
+		// ouput Line Protocol
+		var buf bytes.Buffer
+		for _, r := range s.Records {
+			if r.Value != nil {
+				data, err = json.Marshal(r)
+				if err != nil {
+					fmt.Println("error encoding JSONLINE SenML", err)
+					return nil, err
+				}
+				buf.Write(data)
+				buf.WriteString("\n")
+			}
+		}
+		data = buf.Bytes()
 	}
 
 	return data, nil
