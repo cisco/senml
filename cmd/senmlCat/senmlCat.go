@@ -166,14 +166,14 @@ func main() {
 	
 	flag.Parse()
 
-	fmt.Print("Reading file ...")
+	//fmt.Print("Reading file ...")
 	// load the input
 	msg, err := ioutil.ReadFile(flag.Arg(0))
 	if err != nil {
 		fmt.Println("error reading SenML file", err)
 		os.Exit(1)
 	}
-	fmt.Println("Done")
+	//fmt.Println("Done")
 	
 	err = processData(msg)
 	if err != nil {
