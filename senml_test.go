@@ -57,7 +57,7 @@ func TestEncode(t *testing.T) {
 			senml.SenMLRecord{BoolValue: &vb, Name: "ok"},
 		},
 	}
-	options := senml.OutputOptions{Topic: "fluffySenml"}
+	options := senml.OutputOptions{Topic: "fluffySenml", PrettyPrint: false }
 	for i, vector := range testVectors {
 
 		dataOut, err := senml.Encode(s, vector.format, options)
