@@ -57,7 +57,7 @@ func TestEncode(t *testing.T) {
 			senml.SenMLRecord{BoolValue: &vb, Name: "ok"},
 		},
 	}
-	options := senml.OutputOptions{Topic: "fluffySenml", PrettyPrint: false }
+	options := senml.OutputOptions{Topic: "fluffySenml", PrettyPrint: false}
 	for i, vector := range testVectors {
 
 		dataOut, err := senml.Encode(s, vector.format, options)
@@ -125,8 +125,8 @@ func TestNormalize(t *testing.T) {
 		t.Fail()
 	}
 	fmt.Println("Test Normalize got: " + string(dataOut))
-	
+
 	if base64.StdEncoding.EncodeToString(dataOut) != "WwogIHsKICAgICJidmVyIjogNSwKICAgICJuIjogImRldjEyMy90ZW1wIiwKICAgICJ1IjogImRlZ0MiLAogICAgInQiOiA4OTc4NDQuNjcsCiAgICAidXQiOiAxMCwKICAgICJ2IjogMjIuMSwKICAgICJzIjogMAogIH0sCiAgewogICAgImJ2ZXIiOiA1LAogICAgIm4iOiAiZGV2MTIzL3Jvb20iLAogICAgInUiOiAiZGVnQyIsCiAgICAidCI6IDg5Nzg0NC42NywKICAgICJ2cyI6ICJraXRjaGVuIgogIH0sCiAgewogICAgImJ2ZXIiOiA1LAogICAgIm4iOiAiZGV2MTIzL29rIiwKICAgICJ1IjogImRlZ0MiLAogICAgInQiOiA4OTc4NDUuNjcsCiAgICAidmIiOiB0cnVlCiAgfQpd" {
-		t.Error("Failed Normalize got: " + base64.StdEncoding.EncodeToString(dataOut) )
+		t.Error("Failed Normalize got: " + base64.StdEncoding.EncodeToString(dataOut))
 	}
 }
