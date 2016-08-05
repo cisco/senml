@@ -143,7 +143,22 @@ func Encode(s SenML, format Format, options OutputOptions) ([]byte, error) {
 	case format == JSON:
 		// ouput JSON version
 		if options.PrettyPrint {
-			data, err = json.MarshalIndent(s.Records, "", "  ")
+			// data, err = json.MarshalIndent(s.Records, "", "  ")
+			var lines string
+			lines += fmt.Sprintf("[\n  ")
+			for i, r := range s.Records {
+			    if i != 0 {
+			       lines += ",\n  "
+			    }
+			    recData, err := json.Marshal( r )
+			    	if err != nil {
+							fmt.Println("error encoding JSON SenML", err)
+								return nil, err
+		         	}
+			    lines += fmt.Sprintf("%s",recData )
+			}
+			lines += fmt.Sprintf("\n]\n")
+			data = []byte(lines)	
 		} else {
 			data, err = json.Marshal(s.Records)
 		}

@@ -15,7 +15,7 @@ import (
 
 var doIndentPtr = flag.Bool("i", false, "indent output")
 var doPrintPtr = flag.Bool("print", false, "print output to stdout")
-var doExpandPtr = flag.Bool("expand", false, "expand SenML records")
+var doResolvePtr = flag.Bool("resolve", false, "resolve SenML records")
 var postUrl = flag.String("post", "", "URL to HTTP POST output to")
 var topic = flag.String("topic", "senml", "Apache Kafka topic or InfluxDB series name ")
 
@@ -92,7 +92,7 @@ func processData(dataIn []byte) error {
 	}
 
 	//fmt.Println( "Senml:", senml.Records )
-	if *doExpandPtr {
+	if *doResolvePtr {
 		s = senml.Normalize(s)
 	}
 
