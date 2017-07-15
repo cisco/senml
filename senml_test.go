@@ -166,7 +166,6 @@ func TestBadInput2(t *testing.T) {
 	}
 }
 
-/*
 func TestBadInputNoValue(t *testing.T) {
 	data := []byte("  [ { \"n\":\"hi\" } ] ")
 	_ , err := senml.Decode(data, senml.JSON)
@@ -174,4 +173,44 @@ func TestBadInputNoValue(t *testing.T) {
 		t.Fail()
 	}
 }
-*/
+
+func TestBadInputNumericName(t *testing.T) {
+	data := []byte("  [ { \"n\":\"3hi\", \"v\":1.0 } ] ")
+	_ , err := senml.Decode(data, senml.JSON)
+	if err == nil {
+		t.Fail()
+	}
+}
+
+func TestInputWeirdName(t *testing.T) {
+	data := []byte("  [ { \"n\":\"Az3-:._/\", \"v\":1.0 } ] ")
+	_ , err := senml.Decode(data, senml.JSON)
+	if err != nil {
+		t.Fail()
+	}
+}
+
+func TestBadInputWeirdName(t *testing.T) {
+	data := []byte("  [ { \"n\":\"A;b\", \"v\":1.0 } ] ")
+	_ , err := senml.Decode(data, senml.JSON)
+	if err == nil {
+		t.Fail()
+	}
+}
+
+func TestBadInputNumericBaseName(t *testing.T) {
+	data := []byte("  [ { \"bn\": \"3h\" , \"n\":\"i\" , \"v\":1.0} ] ")
+	_ , err := senml.Decode(data, senml.JSON)
+	if err == nil {
+		t.Fail()
+	}
+}
+
+func TestBadInputUnknownMtuField(t *testing.T) {
+	data := []byte("  [ { \"n\":\"hi\", \"v\":1.0, \"mtu_\":1.0  } ] ")
+	_ , err := senml.Decode(data, senml.JSON)
+	if err == nil {
+		t.Fail()
+	}
+}
+
