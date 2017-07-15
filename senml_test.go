@@ -8,11 +8,11 @@ import (
 	"testing"
 )
 
-func ExampleEncode() {
-	v := 22.1
+func ExampleEncode1() {
+	v := 23.1
 	s := senml.SenML{
 		Records: []senml.SenMLRecord{
-			senml.SenMLRecord{Value: &v, Unit: "degC", Name: "temp"},
+			senml.SenMLRecord{Value: &v, Unit: "Cel", Name: "urn:dev:ow:10e2073a01080063"},
 		},
 	}
 
@@ -22,7 +22,26 @@ func ExampleEncode() {
 	} else {
 		fmt.Println(string(dataOut))
 	}
-	// Output: [{"n":"temp","u":"degC","v":22.1}]
+	// Output: [{"n":"urn:dev:ow:10e2073a01080063","u":"Cel","v":23.1}]
+}
+
+func ExampleEncode2() {
+	v1 := 23.5
+	v2 := 23.6
+	s := senml.SenML{
+		Records: []senml.SenMLRecord{
+			senml.SenMLRecord{Value: &v1, Unit: "Cel", BaseName: "urn:dev:ow:10e2073a01080063", Time: 1.276020076e+09},
+			senml.SenMLRecord{Value: &v2, Unit: "Cel", Time: 1.276020091e+09},
+		},
+	}
+
+	dataOut, err := senml.Encode(s, senml.JSON, senml.OutputOptions{})
+	if err != nil {
+		fmt.Println("Encode of SenML failed")
+	} else {
+		fmt.Println(string(dataOut))
+	}
+	// Output: [{"bn":"urn:dev:ow:10e2073a01080063","u":"Cel","t":1.276020076e+09,"v":23.5},{"u":"Cel","t":1.276020091e+09,"v":23.6}]
 }
 
 type TestVector struct {
