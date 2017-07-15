@@ -149,3 +149,29 @@ func TestNormalize(t *testing.T) {
 		t.Error("Failed Normalize got: " + base64.StdEncoding.EncodeToString(dataOut))
 	}
 }
+
+func TestBadInput1(t *testing.T) {
+	data := []byte(" foo ")
+	_ , err := senml.Decode(data, senml.JSON)
+	if err == nil {
+		t.Fail()
+	}
+}
+
+func TestBadInput2(t *testing.T) {
+	data := []byte(" { \"n\":\"hi\" } ")
+	_ , err := senml.Decode(data, senml.JSON)
+	if err == nil {
+		t.Fail()
+	}
+}
+
+/*
+func TestBadInputNoValue(t *testing.T) {
+	data := []byte("  [ { \"n\":\"hi\" } ] ")
+	_ , err := senml.Decode(data, senml.JSON)
+	if err == nil {
+		t.Fail()
+	}
+}
+*/
