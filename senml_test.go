@@ -199,7 +199,7 @@ func TestBadInputWeirdName(t *testing.T) {
 }
 
 func TestBadInputNumericBaseName(t *testing.T) {
-	data := []byte("  [ { \"bn\": \"3h\" , \"n\":\"i\" , \"v\":1.0} ] ")
+	data := []byte("[ { \"bn\": \"3h\" , \"n\":\"i\" , \"v\":1.0} ] ")
 	_ , err := senml.Decode(data, senml.JSON)
 	if err == nil {
 		t.Fail()
@@ -207,10 +207,41 @@ func TestBadInputNumericBaseName(t *testing.T) {
 }
 
 func TestBadInputUnknownMtuField(t *testing.T) {
-	data := []byte("  [ { \"n\":\"hi\", \"v\":1.0, \"mtu_\":1.0  } ] ")
+	data := []byte("[ { \"n\":\"hi\", \"v\":1.0, \"mtu_\":1.0  } ] ")
 	_ , err := senml.Decode(data, senml.JSON)
 	if err == nil {
 		t.Fail()
 	}
 }
 
+func TestInputSumOnly(t *testing.T) {
+	data := []byte( "[ { \"n\":\"a\", \"s\":1.0 } ] ")
+	_ , err := senml.Decode(data, senml.JSON)
+	if err != nil {
+		t.Fail()
+	}
+}
+
+func TestInputBoolean(t *testing.T) {
+	data := []byte("[ { \"n\":\"a\", \"vd\": \"aGkgCg\" } ] ")
+	_ , err := senml.Decode(data, senml.JSON)
+	if err != nil {
+		t.Fail()
+	}
+}
+
+func TestInputData(t *testing.T) {
+	data := []byte("  [ { \"n\":\"a\", \"vb\": true } ] ")
+	_ , err := senml.Decode(data, senml.JSON)
+	if err != nil {
+		t.Fail()
+	}
+}
+
+func TestInputString(t *testing.T) {
+	data := []byte("  [ { \"n\":\"a\", \"vs\": \"Hi\" } ] ")
+	_ , err := senml.Decode(data, senml.JSON)
+	if err != nil {
+		t.Fail()
+	}
+}
