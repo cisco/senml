@@ -99,6 +99,8 @@ func TestEncode(t *testing.T) {
 
 func TestDecode(t *testing.T) {
 	for i, vector := range testVectors {
+		fmt.Println("Doing TestDecode for vector", i)
+
 		if vector.testDecode {
 			data, err := base64.StdEncoding.DecodeString(vector.value)
 			if err != nil {
@@ -152,7 +154,7 @@ func TestNormalize(t *testing.T) {
 
 func TestBadInput1(t *testing.T) {
 	data := []byte(" foo ")
-	_ , err := senml.Decode(data, senml.JSON)
+	_, err := senml.Decode(data, senml.JSON)
 	if err == nil {
 		t.Fail()
 	}
@@ -160,7 +162,7 @@ func TestBadInput1(t *testing.T) {
 
 func TestBadInput2(t *testing.T) {
 	data := []byte(" { \"n\":\"hi\" } ")
-	_ , err := senml.Decode(data, senml.JSON)
+	_, err := senml.Decode(data, senml.JSON)
 	if err == nil {
 		t.Fail()
 	}
@@ -168,23 +170,31 @@ func TestBadInput2(t *testing.T) {
 
 func TestBadInputNoValue(t *testing.T) {
 	data := []byte("  [ { \"n\":\"hi\" } ] ")
-	_ , err := senml.Decode(data, senml.JSON)
+	_, err := senml.Decode(data, senml.JSON)
 	if err == nil {
 		t.Fail()
 	}
 }
 
+func TestInputNumericName(t *testing.T) {
+	data := []byte("  [ { \"n\":\"3a\", \"v\":1.0 } ] ")
+	_, err := senml.Decode(data, senml.JSON)
+	if err != nil {
+		t.Fail()
+	}
+}
+
 func TestBadInputNumericName(t *testing.T) {
-	data := []byte("  [ { \"n\":\"3hi\", \"v\":1.0 } ] ")
-	_ , err := senml.Decode(data, senml.JSON)
+	data := []byte("  [ { \"n\":\"-3b\", \"v\":1.0 } ] ")
+	_, err := senml.Decode(data, senml.JSON)
 	if err == nil {
 		t.Fail()
 	}
 }
 
 func TestInputWeirdName(t *testing.T) {
-	data := []byte("  [ { \"n\":\"Az3-:._/\", \"v\":1.0 } ] ")
-	_ , err := senml.Decode(data, senml.JSON)
+	data := []byte("  [ { \"n\":\"Az3-:./_\", \"v\":1.0 } ] ")
+	_, err := senml.Decode(data, senml.JSON)
 	if err != nil {
 		t.Fail()
 	}
@@ -192,31 +202,40 @@ func TestInputWeirdName(t *testing.T) {
 
 func TestBadInputWeirdName(t *testing.T) {
 	data := []byte("  [ { \"n\":\"A;b\", \"v\":1.0 } ] ")
-	_ , err := senml.Decode(data, senml.JSON)
+	_, err := senml.Decode(data, senml.JSON)
 	if err == nil {
+		t.Fail()
+	}
+}
+
+func TestInputWeirdBaseName(t *testing.T) {
+	data := []byte("[ { \"bn\": \"a\" , \"n\":\"/b\" , \"v\":1.0} ] ")
+	_, err := senml.Decode(data, senml.JSON)
+	if err != nil {
 		t.Fail()
 	}
 }
 
 func TestBadInputNumericBaseName(t *testing.T) {
-	data := []byte("[ { \"bn\": \"3h\" , \"n\":\"i\" , \"v\":1.0} ] ")
-	_ , err := senml.Decode(data, senml.JSON)
+	data := []byte("[ { \"bn\": \"/3h\" , \"n\":\"i\" , \"v\":1.0} ] ")
+	_, err := senml.Decode(data, senml.JSON)
 	if err == nil {
 		t.Fail()
 	}
 }
 
-func TestBadInputUnknownMtuField(t *testing.T) {
-	data := []byte("[ { \"n\":\"hi\", \"v\":1.0, \"mtu_\":1.0  } ] ")
-	_ , err := senml.Decode(data, senml.JSON)
-	if err == nil {
-		t.Fail()
-	}
-}
+// TODO add
+//func TestBadInputUnknownMtuField(t *testing.T) {
+//	data := []byte("[ { \"n\":\"hi\", \"v\":1.0, \"mtu_\":1.0  } ] ")
+//	_ , err := senml.Decode(data, senml.JSON)
+//	if err == nil {
+//		t.Fail()
+//	}
+//}
 
 func TestInputSumOnly(t *testing.T) {
-	data := []byte( "[ { \"n\":\"a\", \"s\":1.0 } ] ")
-	_ , err := senml.Decode(data, senml.JSON)
+	data := []byte("[ { \"n\":\"a\", \"s\":1.0 } ] ")
+	_, err := senml.Decode(data, senml.JSON)
 	if err != nil {
 		t.Fail()
 	}
@@ -224,7 +243,7 @@ func TestInputSumOnly(t *testing.T) {
 
 func TestInputBoolean(t *testing.T) {
 	data := []byte("[ { \"n\":\"a\", \"vd\": \"aGkgCg\" } ] ")
-	_ , err := senml.Decode(data, senml.JSON)
+	_, err := senml.Decode(data, senml.JSON)
 	if err != nil {
 		t.Fail()
 	}
@@ -232,7 +251,7 @@ func TestInputBoolean(t *testing.T) {
 
 func TestInputData(t *testing.T) {
 	data := []byte("  [ { \"n\":\"a\", \"vb\": true } ] ")
-	_ , err := senml.Decode(data, senml.JSON)
+	_, err := senml.Decode(data, senml.JSON)
 	if err != nil {
 		t.Fail()
 	}
@@ -240,7 +259,7 @@ func TestInputData(t *testing.T) {
 
 func TestInputString(t *testing.T) {
 	data := []byte("  [ { \"n\":\"a\", \"vs\": \"Hi\" } ] ")
-	_ , err := senml.Decode(data, senml.JSON)
+	_, err := senml.Decode(data, senml.JSON)
 	if err != nil {
 		t.Fail()
 	}

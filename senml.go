@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"github.com/ugorji/go/codec"
 	"strconv"
@@ -73,8 +74,8 @@ func Decode(msg []byte, format Format) (SenML, error) {
 		// parse the input JSON stream
 		err = json.Unmarshal(msg, &s.Records)
 		if err != nil {
-			fmt.Println("error parsing JSON SenML Stream: ", err)
-			fmt.Println("msg=", msg)
+			//fmt.Println("error parsing JSON SenML Stream: ", err)
+			//fmt.Println("msg=", msg)
 			return s, err
 		}
 
@@ -86,7 +87,7 @@ func Decode(msg []byte, format Format) (SenML, error) {
 			if len(line) > 5 {
 				err = json.Unmarshal([]byte(line), r)
 				if err != nil {
-					fmt.Println("error parsing JSON SenML Line: ", err)
+					//fmt.Println("error parsing JSON SenML Line: ", err)
 					return s, err
 				}
 				s.Records = append(s.Records, *r)
@@ -97,7 +98,7 @@ func Decode(msg []byte, format Format) (SenML, error) {
 		// parse the input XML
 		err = xml.Unmarshal(msg, &s)
 		if err != nil {
-			fmt.Println("error parsing XML SenML", err)
+			//fmt.Println("error parsing XML SenML", err)
 			return s, err
 		}
 
@@ -107,7 +108,7 @@ func Decode(msg []byte, format Format) (SenML, error) {
 		var decoder *codec.Decoder = codec.NewDecoderBytes(msg, cborHandle)
 		err = decoder.Decode(&s.Records)
 		if err != nil {
-			fmt.Println("error parsing CBOR SenML", err)
+			//fmt.Println("error parsing CBOR SenML", err)
 			return s, err
 		}
 
@@ -118,10 +119,14 @@ func Decode(msg []byte, format Format) (SenML, error) {
 		var decoder *codec.Decoder = codec.NewDecoderBytes(msg, mpackHandle)
 		err = decoder.Decode(&s.Records)
 		if err != nil {
-			fmt.Println("error parsing MPACK SenML", err)
+			//fmt.Println("error parsing MPACK SenML", err)
 			return s, err
 		}
 
+	}
+
+	if !IsValid(s) {
+		return s, errors.New("SenML record not valid")
 	}
 
 	return s, nil
@@ -152,7 +157,7 @@ func Encode(s SenML, format Format, options OutputOptions) ([]byte, error) {
 				}
 				recData, err := json.Marshal(r)
 				if err != nil {
-					fmt.Println("error encoding JSON SenML", err)
+					//fmt.Println("error encoding JSON SenML", err)
 					return nil, err
 				}
 				lines += fmt.Sprintf("%s", recData)
@@ -163,7 +168,7 @@ func Encode(s SenML, format Format, options OutputOptions) ([]byte, error) {
 			data, err = json.Marshal(s.Records)
 		}
 		if err != nil {
-			fmt.Println("error encoding JSON SenML", err)
+			//fmt.Println("error encoding JSON SenML", err)
 			return nil, err
 		}
 
@@ -175,7 +180,7 @@ func Encode(s SenML, format Format, options OutputOptions) ([]byte, error) {
 			data, err = xml.Marshal(s)
 		}
 		if err != nil {
-			fmt.Println("error encoding XML SenML", err)
+			//fmt.Println("error encoding XML SenML", err)
 			return nil, err
 		}
 
@@ -198,7 +203,7 @@ func Encode(s SenML, format Format, options OutputOptions) ([]byte, error) {
 		}
 		data = []byte(lines)
 		if err != nil {
-			fmt.Println("error encoding CSV SenML", err)
+			//fmt.Println("error encoding CSV SenML", err)
 			return nil, err
 		}
 
@@ -208,7 +213,7 @@ func Encode(s SenML, format Format, options OutputOptions) ([]byte, error) {
 		var encoder *codec.Encoder = codec.NewEncoderBytes(&data, cborHandle)
 		err = encoder.Encode(s.Records)
 		if err != nil {
-			fmt.Println("error encoding CBOR SenML", err)
+			//fmt.Println("error encoding CBOR SenML", err)
 			return nil, err
 		}
 
@@ -218,7 +223,7 @@ func Encode(s SenML, format Format, options OutputOptions) ([]byte, error) {
 		var encoder *codec.Encoder = codec.NewEncoderBytes(&data, mpackHandle)
 		err = encoder.Encode(s.Records)
 		if err != nil {
-			fmt.Println("error encoding MPACK SenML", err)
+			//fmt.Println("error encoding MPACK SenML", err)
 			return nil, err
 		}
 
@@ -248,7 +253,7 @@ func Encode(s SenML, format Format, options OutputOptions) ([]byte, error) {
 			if r.Value != nil {
 				data, err = json.Marshal(r)
 				if err != nil {
-					fmt.Println("error encoding JSONLINE SenML", err)
+					//fmt.Println("error encoding JSONLINE SenML", err)
 					return nil, err
 				}
 				buf.Write(data)
@@ -319,4 +324,88 @@ func Normalize(senml SenML) SenML {
 	}
 
 	return ret
+}
+
+// Test if SenML is valid
+func IsValid(senml SenML) bool {
+	var bname string = ""
+	var bver = -1
+
+	//fmt.Println("In Validate")
+
+	for _, r := range senml.Records {
+
+		// Check version is same for all records
+		if bver == -1 {
+			// set the bver the first time it is seen
+			if r.BaseVersion != 0 {
+				bver = r.BaseVersion
+			}
+		} else {
+			if r.BaseVersion != 0 {
+				// next time a version in seen, check it has not changed
+				if r.BaseVersion != bver {
+					//fmt.Println("unallowed version change ")
+					return false
+				}
+			}
+		}
+
+		// Check name
+		if len(r.BaseName) > 0 {
+			bname = r.BaseName
+		}
+		name := bname + r.Name
+		if len(name) == 0 {
+			//fmt.Println("empty name")
+
+			return false
+		}
+		if (name[0] == '-') || (name[0] == ':') || (name[0] == '.') || (name[0] == '/') || (name[0] == '_') {
+			//fmt.Println("Bad first char in name")
+			return false
+		}
+		for _, l := range name {
+			if (l < 'a' || l > 'z') && (l < 'A' || l > 'Z') && (l < '0' || l > '9') && (l != '-') && (l != ':') && (l != '.') && (l != '/') && (l != '_') {
+				//fmt.Println("Bad char in name")
+				return false
+			}
+		}
+
+		valueCount := 0
+		if r.Value != nil {
+			valueCount = valueCount + 1
+		}
+		if r.BoolValue != nil {
+			valueCount = valueCount + 1
+		}
+		if len(r.DataValue) > 0 {
+			valueCount = valueCount + 1
+		}
+		if len(r.StringValue) > 0 {
+			valueCount = valueCount + 1
+		}
+		if valueCount > 1 {
+			//fmt.Println("Too many values ")
+			return false
+		}
+		if r.Sum != nil {
+			valueCount = valueCount + 1
+		}
+		if valueCount < 1 {
+			//fmt.Println("No value or sum")
+			return false
+		}
+
+		// Check if name is known Mandatory To Understand
+		//for k :=  r {
+		// 	fmt.Println( "key=" , k  )
+		//         if k[ len(k)-1 ] == '_' {
+		//         	fmt.Println("unknown MTU in record")
+		//		return false
+		//        }
+		// }
+	}
+
+	return true
 }
