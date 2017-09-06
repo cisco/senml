@@ -91,7 +91,7 @@ func processData(dataIn []byte) error {
 		return err
 	}
 
-	//fmt.Println( "Senml:", senml.Records )
+     	//fmt.Println( "Senml:", senml.Records )
 	if *doResolvePtr {
 		s = senml.Normalize(s)
 	}
@@ -174,7 +174,7 @@ func main() {
 		os.Exit(1)
 	}
 	//fmt.Println("Done")
-	
+
 	err = processData(msg)
 	if err != nil {
 		fmt.Println("error processing SenML file", err)
