@@ -30,8 +30,8 @@ func ExampleEncode2() {
 	v2 := 23.6
 	s := senml.SenML{
 		Records: []senml.SenMLRecord{
-			senml.SenMLRecord{Value: &v1, Unit: "Cel", BaseName: "urn:dev:ow:10e2073a01080063", Time: 1.276020076e+09},
-			senml.SenMLRecord{Value: &v2, Unit: "Cel", Time: 1.276020091e+09},
+			senml.SenMLRecord{Value: &v1, Unit: "Cel", BaseName: "urn:dev:ow:10e2073a01080063", Time: 1.276020076305e+09},
+			senml.SenMLRecord{Value: &v2, Unit: "Cel", Time: 1.276020091305e+09},
 		},
 	}
 
@@ -41,7 +41,7 @@ func ExampleEncode2() {
 	} else {
 		fmt.Println(string(dataOut))
 	}
-	// Output: [{"bn":"urn:dev:ow:10e2073a01080063","u":"Cel","t":1.276020076e+09,"v":23.5},{"u":"Cel","t":1.276020091e+09,"v":23.6}]
+	// Output: [{"bn":"urn:dev:ow:10e2073a01080063","u":"Cel","t":1276020076.305,"v":23.5},{"u":"Cel","t":1276020091.305,"v":23.6}]
 }
 
 type TestVector struct {
