@@ -50,7 +50,7 @@ type SenMLRecord struct {
 	DataValue   string   `json:"vd,omitempty"  xml:"vd,attr,omitempty"`
 	BoolValue   *bool    `json:"vb,omitempty"  xml:"vb,attr,omitempty"`
 
-	Sum *float64 `json:"s,omitempty"  xml:"sum,,attr,omitempty"`
+	Sum *float64 `json:"s,omitempty"  xml:"s,attr,omitempty"`
 }
 
 type SenML struct {
