@@ -7,10 +7,11 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
-	"github.com/ugorji/go/codec"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/ugorji/go/codec"
 )
 
 type Format int
@@ -277,7 +278,7 @@ func Normalize(senml SenML) SenML {
 
 	var totalRecords int = 0
 	for _, r := range senml.Records {
-		if (r.Value != nil) || (len(r.StringValue) > 0) || (r.BoolValue != nil) {
+		if (r.Value != nil) || (len(r.StringValue) > 0) || (len(r.DataValue) > 0) || (r.BoolValue != nil) {
 			totalRecords += 1
 		}
 	}
@@ -317,7 +318,7 @@ func Normalize(senml SenML) SenML {
 			r.Time = float64(t) + r.Time
 		}
 
-		if (r.Value != nil) || (len(r.StringValue) > 0) || (r.BoolValue != nil) {
+		if (r.Value != nil) || (len(r.StringValue) > 0) || (len(r.DataValue) > 0) || (r.BoolValue != nil) {
 			ret.Records[numRecords] = r
 			numRecords += 1
 		}
