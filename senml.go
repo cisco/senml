@@ -313,9 +313,8 @@ func Normalize(senml SenML) SenML {
 
 		if r.Time <= 0 {
 			// convert to absolute time
-			var now int64 = time.Now().UnixNano()
-			var t int64 = now / 1000000000.0
-			r.Time = float64(t) + r.Time
+			var now float64 = float64(time.Now().UnixNano()) / 1000000000
+			r.Time = now + r.Time
 		}
 
 		if (r.Value != nil) || (len(r.StringValue) > 0) || (len(r.DataValue) > 0) || (r.BoolValue != nil) {
