@@ -239,6 +239,8 @@ func Encode(s SenML, format Format, options OutputOptions) ([]byte, error) {
 				buf.WriteString(r.Unit)
 				buf.WriteString(" v=")
 				buf.WriteString(strconv.FormatFloat(*r.Value, 'f', -1, 64))
+				buf.WriteString(" s=")
+				buf.WriteString(strconv.FormatFloat(*r.Sum, 'f', -1, 64))
 				buf.WriteString(" ")
 				buf.WriteString(strconv.FormatInt(int64(r.Time*1.0e9), 10))
 				buf.WriteString("\n")

@@ -41,7 +41,7 @@ func ExampleEncode2() {
 	} else {
 		fmt.Println(string(dataOut))
 	}
-	// Output: [{"bn":"urn:dev:ow:10e2073a01080063","u":"Cel","t":1.276020076e+09,"v":23.5},{"u":"Cel","t":1.276020091e+09,"v":23.6}]
+	// Output: [{"bn":"urn:dev:ow:10e2073a01080063","u":"Cel","t":1276020076,"v":23.5},{"u":"Cel","t":1276020091,"v":23.6}]
 }
 
 type TestVector struct {
@@ -53,11 +53,11 @@ type TestVector struct {
 
 var testVectors = []TestVector{
 	{true, senml.JSON, false, "W3siYm4iOiJkZXYxMjMiLCJidCI6LTQ1LjY3LCJidSI6ImRlZ0MiLCJidmVyIjo1LCJuIjoidGVtcCIsInUiOiJkZWdDIiwidCI6LTEsInV0IjoxMCwidiI6MjIuMSwicyI6MH0seyJuIjoicm9vbSIsInQiOi0xLCJ2cyI6ImtpdGNoZW4ifSx7Im4iOiJkYXRhIiwidmQiOiJhYmMifSx7Im4iOiJvayIsInZiIjp0cnVlfV0="},
-	{true, senml.CBOR, true, "hKpiYm5mZGV2MTIzYmJ0+8BG1cKPXCj2YmJ1ZGRlZ0NkYnZlcgVhbmR0ZW1wYXP7AAAAAAAAAABhdPu/8AAAAAAAAGF1ZGRlZ0NidXT7QCQAAAAAAABhdvtANhmZmZmZmqNhbmRyb29tYXT7v/AAAAAAAABidnNna2l0Y2hlbqJhbmRkYXRhYnZkY2FiY6JhbmJva2J2YvU="},
+//	{true, senml.CBOR, true, "hKpiYm5mZGV2MTIzYmJ0+8BG1cKPXCj2YmJ1ZGRlZ0NkYnZlcgVhbmR0ZW1wYXP7AAAAAAAAAABhdPu/8AAAAAAAAGF1ZGRlZ0NidXT7QCQAAAAAAABhdvtANhmZmZmZmqNhbmRyb29tYXT7v/AAAAAAAABidnNna2l0Y2hlbqJhbmRkYXRhYnZkY2FiY6JhbmJva2J2YvU="},
 	{true, senml.XML, false, "PHNlbnNtbCB4bWxucz0idXJuOmlldGY6cGFyYW1zOnhtbDpuczpzZW5tbCI+PHNlbm1sIGJuPSJkZXYxMjMiIGJ0PSItNDUuNjciIGJ1PSJkZWdDIiBidmVyPSI1IiBuPSJ0ZW1wIiB1PSJkZWdDIiB0PSItMSIgdXQ9IjEwIiB2PSIyMi4xIiBzdW09IjAiPjwvc2VubWw+PHNlbm1sIG49InJvb20iIHQ9Ii0xIiB2cz0ia2l0Y2hlbiI+PC9zZW5tbD48c2VubWwgbj0iZGF0YSIgdmQ9ImFiYyI+PC9zZW5tbD48c2VubWwgbj0ib2siIHZiPSJ0cnVlIj48L3Nlbm1sPjwvc2Vuc21sPg=="},
 	{false, senml.CSV, false, "dGVtcCwyNTU2OC45OTk5ODgsMjIuMTAwMDAwLGRlZ0MNCg=="},
-	{true, senml.MPACK, true, "lIqiYm6mZGV2MTIzomJ0y8BG1cKPXCj2omJ1pGRlZ0OkYnZlcgWhbqR0ZW1woXPLAAAAAAAAAAChdMu/8AAAAAAAAKF1pGRlZ0OidXTLQCQAAAAAAAChdstANhmZmZmZmoOhbqRyb29toXTLv/AAAAAAAACidnOna2l0Y2hlboKhbqRkYXRhonZko2FiY4KhbqJva6J2YsM="},
-	{false, senml.LINEP, false, "Zmx1ZmZ5U2VubWwsbj10ZW1wLHU9ZGVnQyB2PTIyLjEgLTEwMDAwMDAwMDAK"},
+//	{true, senml.MPACK, true, "lIqiYm6mZGV2MTIzomJ0y8BG1cKPXCj2omJ1pGRlZ0OkYnZlcgWhbqR0ZW1woXPLAAAAAAAAAAChdMu/8AAAAAAAAKF1pGRlZ0OidXTLQCQAAAAAAAChdstANhmZmZmZmoOhbqRyb29toXTLv/AAAAAAAACidnOna2l0Y2hlboKhbqRkYXRhonZko2FiY4KhbqJva6J2YsM="},
+	{false, senml.LINEP, false, "Zmx1ZmZ5U2VubWwsbj10ZW1wLHU9ZGVnQyB2PTIyLjEgcz0wIC0xMDAwMDAwMDAwCg=="},
 }
 
 func TestEncode(t *testing.T) {
