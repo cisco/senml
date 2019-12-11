@@ -7,6 +7,7 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -25,6 +26,22 @@ const (
 	LINEP
 	JSONLINE
 )
+
+var fields = map[int]string{
+	-1: "BaseVersion",
+	-2: "BaseName",
+	-3: "BaseTime",
+	-4: "BaseUnit",
+	0:  "Name",
+	1:  "Unit",
+	2:  "Value",
+	3:  "StringValue",
+	4:  "BoolValue",
+	5:  "Sum",
+	6:  "Time",
+	7:  "UpdateTime",
+	8:  "DataValue",
+}
 
 type OutputOptions struct {
 	PrettyPrint bool
@@ -54,11 +71,83 @@ type SenMLRecord struct {
 	Sum *float64 `json:"s,omitempty"  xml:"s,attr,omitempty"`
 }
 
+type record map[int]interface{}
+
+func (r record) str(f int) string {
+	if v, ok := r[f].(string); ok {
+		return v
+	}
+	return ""
+}
+
+func (r record) int(f int) int {
+	if v, ok := r[f].(int); ok {
+		return v
+	}
+	return 0
+}
+
+func (r record) float(f int) float64 {
+	if v, ok := r[f].(float64); ok {
+		return v
+	}
+	return 0
+}
+
+func (rec SenMLRecord) toRecord() record {
+	ret := record{}
+	val := reflect.ValueOf(rec)
+	for k, v := range fields {
+		f := val.FieldByName(v)
+		if f.IsValid() && !f.IsZero() {
+			ret[k] = f.Interface()
+		}
+	}
+
+	return ret
+}
+
 type SenML struct {
 	XMLName *bool  `json:"_,omitempty" xml:"sensml"`
 	Xmlns   string `json:"_,omitempty" xml:"xmlns,attr"`
 
 	Records []SenMLRecord ` xml:"senml"`
+}
+
+func (records SenML) toRecords() []map[int]interface{} {
+	var ret []map[int]interface{}
+	for _, r := range records.Records {
+		ret = append(ret, r.toRecord())
+	}
+
+	return ret
+}
+
+func (records *SenML) fromRecords(recs []record) {
+	for _, r := range recs {
+		rec := SenMLRecord{
+			BaseVersion: r.int(-1),
+			BaseName:    r.str(-2),
+			BaseTime:    r.float(-3),
+			BaseUnit:    r.str(-4),
+			Name:        r.str(0),
+			Unit:        r.str(1),
+			StringValue: r.str(3),
+			Time:        r.float(6),
+			UpdateTime:  r.float(7),
+			DataValue:   r.str(8),
+		}
+		if v, ok := r[2].(float64); ok {
+			rec.Value = &v
+		}
+		if v, ok := r[4].(bool); ok {
+			rec.BoolValue = &v
+		}
+		if v, ok := r[5].(float64); ok {
+			rec.Sum = &v
+		}
+		records.Records = append(records.Records, rec)
+	}
 }
 
 // Decode takes a SenML message in the given format and parses it and decodes it
@@ -107,11 +196,13 @@ func Decode(msg []byte, format Format) (SenML, error) {
 		// parse the input CBOR
 		var cborHandle codec.Handle = new(codec.CborHandle)
 		var decoder *codec.Decoder = codec.NewDecoderBytes(msg, cborHandle)
-		err = decoder.Decode(&s.Records)
+		rec := []record{}
+		err = decoder.Decode(&rec)
 		if err != nil {
 			//fmt.Println("error parsing CBOR SenML", err)
 			return s, err
 		}
+		s.fromRecords(rec)
 
 	case format == MPACK:
 		// parse the input MPACK
@@ -212,7 +303,8 @@ func Encode(s SenML, format Format, options OutputOptions) ([]byte, error) {
 		// output a CBOR version
 		var cborHandle codec.Handle = new(codec.CborHandle)
 		var encoder *codec.Encoder = codec.NewEncoderBytes(&data, cborHandle)
-		err = encoder.Encode(s.Records)
+		cborData := s.toRecords()
+		err = encoder.Encode(cborData)
 		if err != nil {
 			//fmt.Println("error encoding CBOR SenML", err)
 			return nil, err
