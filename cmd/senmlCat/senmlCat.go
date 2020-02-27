@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"flag"
 	"fmt"
 	"github.com/cisco/senml"
@@ -10,7 +11,6 @@ import (
 	"net/http"
 	"os"
 	"runtime/pprof"
-	"errors"
 )
 
 var doIndentPtr = flag.Bool("i", false, "indent output")
@@ -71,10 +71,14 @@ func outputData(data []byte) error {
 		}
 		defer resp.Body.Close()
 		body, err := ioutil.ReadAll(resp.Body)
-		if  resp.StatusCode  != 204 {
-			fmt.Println("Post got status " , resp.Status )
-			fmt.Println("Post got",  string(body) )
-			return errors.New("WebServer returned: " + string(body) )
+		if err != nil {
+			fmt.Println("error reading response body: %v", err)
+			return err
+		}
+		if resp.StatusCode != 204 {
+			fmt.Println("Post got status ", resp.Status)
+			fmt.Println("Post got", string(body))
+			return errors.New("WebServer returned: " + string(body))
 		}
 	}
 
@@ -91,7 +95,7 @@ func processData(dataIn []byte) error {
 		return err
 	}
 
-     	//fmt.Println( "Senml:", senml.Records )
+	//fmt.Println( "Senml:", senml.Records )
 	if *doResolvePtr {
 		s = senml.Normalize(s)
 	}
@@ -129,25 +133,25 @@ func processData(dataIn []byte) error {
 		reader := bytes.NewReader(dataOut)
 		lines := bufio.NewScanner(reader)
 		for lines.Scan() {
-			err = outputData( []byte( lines.Text() ) )
+			err = outputData([]byte(lines.Text()))
 			if err != nil {
 				fmt.Println("Output of SenML failed:", err)
 				return err
 			}
 		}
-		
-		err = lines.Err();
+
+		err = lines.Err()
 		if err != nil {
 			fmt.Println("Encode scanning lines in output")
 		}
 	} else {
-		err = outputData( dataOut )
+		err = outputData(dataOut)
 		if err != nil {
 			fmt.Println("Output of SenML failed:", err)
 			return err
 		}
 	}
-	
+
 	return nil
 }
 
@@ -155,15 +159,15 @@ func main() {
 	var err error
 
 	if false {
-        f, err := os.Create( "senmlCat.prof" )
-        if err != nil {
-            fmt.Println("error opening profile file", err)
+		f, err := os.Create("senmlCat.prof")
+		if err != nil {
+			fmt.Println("error opening profile file", err)
 			os.Exit(1)
-        }
-        pprof.StartCPUProfile(f)
-        defer pprof.StopCPUProfile()
-    }
-	
+		}
+		pprof.StartCPUProfile(f)
+		defer pprof.StopCPUProfile()
+	}
+
 	flag.Parse()
 
 	//fmt.Print("Reading file ...")
