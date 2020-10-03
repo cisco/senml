@@ -20,8 +20,8 @@ jobs:
       run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login docker.pkg.github.com -u ${{ github.actor }} --password-stdin
  
     - name: Build the latest Docker image
-      run: docker build . --file Dockerfile --tag docker.pkg.github.com/cisco/senml/senml:latest
+      run: docker build . --file Dockerfile --tag ghcr.io/cisco/senml/senml:latest --tag ghcr.io/cisco/senml/senml:$GITHUB_SHA --cache-from ghcr.io/github/octoshift:ghcr.io/cisco/senml/senml:latest
 
     - name: Push the latest Docker image
-      run: docker push docker.pkg.github.com/cisco/senml/senml:latest
+      run: docker push ghcr.io/cisco/senml/senml:$GITHUB_SHA
 
