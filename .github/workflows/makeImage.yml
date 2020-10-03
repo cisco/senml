@@ -1,0 +1,27 @@
+name: releaseDockerImage
+
+on:
+  push:
+    branches:
+      - main
+      
+env:
+  # Release, Debug
+  BUILD_TYPE: Release
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Docker login
+      run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login docker.pkg.github.com -u ${{ github.actor }} --password-stdin
+ 
+    - name: Build the latest Docker image
+      run: docker build . --file Dockerfile --tag docker.pkg.github.com/cisco/senml/senml:latest
+
+    - name: Push the latest Docker image
+      run: docker push docker.pkg.github.com/cisco/senml/senml:latest
+
