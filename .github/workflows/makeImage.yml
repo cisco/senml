@@ -23,5 +23,5 @@ jobs:
       run: docker build . --file Dockerfile --tag docker.io/fluffy/senml:latest --tag  docker.io/fluffy/senml:$GITHUB_SHA --cache-from  docker.io/fluffy/senml:latest
 
     - name: Push the latest Docker image
-      run: docker push  docker.io/fluffy/senml:$GITHUB_SHA
+      run: docker push  docker.io/fluffy/senml:latest
 
