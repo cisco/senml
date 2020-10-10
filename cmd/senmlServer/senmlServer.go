@@ -14,6 +14,7 @@ import (
 	"os"
 	"strconv"
 	"time"
+	"log"
 )
 
 // TODO
@@ -402,5 +403,6 @@ func main() {
 	}
 
 	http.HandleFunc("/", httpReqHandler)
-	http.ListenAndServe(":"+strconv.Itoa(*httpPort), nil)
+	err = http.ListenAndServe(":"+strconv.Itoa(*httpPort), nil)
+	log.Fatal( err )
 }
