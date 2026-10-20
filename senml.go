@@ -194,7 +194,9 @@ func Decode(msg []byte, format Format) (SenML, error) {
 
 	case format == CBOR:
 		// parse the input CBOR
-		var cborHandle codec.Handle = new(codec.CborHandle)
+		cborH := new(codec.CborHandle)
+		cborH.Canonical = true
+		var cborHandle codec.Handle = cborH
 		var decoder *codec.Decoder = codec.NewDecoderBytes(msg, cborHandle)
 		rec := []record{}
 		err = decoder.Decode(&rec)
@@ -207,7 +209,9 @@ func Decode(msg []byte, format Format) (SenML, error) {
 	case format == MPACK:
 		// parse the input MPACK
 		// spec for MessagePack is at https://github.com/msgpack/msgpack/
-		var mpackHandle codec.Handle = new(codec.MsgpackHandle)
+		mpackH := new(codec.MsgpackHandle)
+		mpackH.Canonical = true
+		var mpackHandle codec.Handle = mpackH
 		var decoder *codec.Decoder = codec.NewDecoderBytes(msg, mpackHandle)
 		err = decoder.Decode(&s.Records)
 		if err != nil {
@@ -301,7 +305,9 @@ func Encode(s SenML, format Format, options OutputOptions) ([]byte, error) {
 
 	case format == CBOR:
 		// output a CBOR version
-		var cborHandle codec.Handle = new(codec.CborHandle)
+		cborH := new(codec.CborHandle)
+		cborH.Canonical = true
+		var cborHandle codec.Handle = cborH
 		var encoder *codec.Encoder = codec.NewEncoderBytes(&data, cborHandle)
 		cborData := s.toRecords()
 		err = encoder.Encode(cborData)
@@ -312,7 +318,9 @@ func Encode(s SenML, format Format, options OutputOptions) ([]byte, error) {
 
 	case format == MPACK:
 		// output a MPACK version
-		var mpackHandle codec.Handle = new(codec.MsgpackHandle)
+		mpackH := new(codec.MsgpackHandle)
+		mpackH.Canonical = true
+		var mpackHandle codec.Handle = mpackH
 		var encoder *codec.Encoder = codec.NewEncoderBytes(&data, mpackHandle)
 		err = encoder.Encode(s.Records)
 		if err != nil {

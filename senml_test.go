@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-func ExampleEncode1() {
+func ExampleEncode_single() {
 	v := 23.1
 	s := senml.SenML{
 		Records: []senml.SenMLRecord{
@@ -25,7 +25,7 @@ func ExampleEncode1() {
 	// Output: [{"n":"urn:dev:ow:10e2073a01080063","u":"Cel","v":23.1}]
 }
 
-func ExampleEncode2() {
+func ExampleEncode_multiple() {
 	v1 := 23.5
 	v2 := 23.6
 	s := senml.SenML{
@@ -53,10 +53,10 @@ type TestVector struct {
 
 var testVectors = []TestVector{
 	{true, senml.JSON, false, "W3siYm4iOiJkZXYxMjMiLCJidCI6LTQ1LjY3LCJidSI6ImRlZ0MiLCJidmVyIjo1LCJuIjoidGVtcCIsInUiOiJkZWdDIiwidCI6LTEsInV0IjoxMCwidiI6MjIuMSwicyI6MH0seyJuIjoicm9vbSIsInQiOi0xLCJ2cyI6ImtpdGNoZW4ifSx7Im4iOiJkYXRhIiwidmQiOiJhYmMifSx7Im4iOiJvayIsInZiIjp0cnVlfV0="},
-	{true, senml.CBOR, true, "hKxhX/ZiYm5mZGV2MTIzYmJ0+8BG1cKPXCj2YmJ1ZGRlZ0NkYnZlcgVhbmR0ZW1wYXP7AAAAAAAAAABhdPu/8AAAAAAAAGF1ZGRlZ0NidXT7QCQAAAAAAABhdvtANhmZmZmZmmJ2YvanYV/2YW5kcm9vbWFz9mF0+7/wAAAAAAAAYXb2YnZi9mJ2c2draXRjaGVupmFf9mFuZGRhdGFhc/ZhdvZidmL2YnZkY2FiY6VhX/ZhbmJva2Fz9mF29mJ2YvU="},
+	{true, senml.CBOR, true, "hKojZGRlZ0Mi+8BG1cKPXCj2IWZkZXYxMjMgBQBkdGVtcAFkZGVnQwL7QDYZmZmZmZoF+wAAAAAAAAAABvu/8AAAAAAAAAf7QCQAAAAAAACjAGRyb29tA2draXRjaGVuBvu/8AAAAAAAAKIAZGRhdGEIY2FiY6IAYm9rBPU="},
 	{true, senml.XML, false, "PHNlbnNtbCB4bWxucz0idXJuOmlldGY6cGFyYW1zOnhtbDpuczpzZW5tbCI+PHNlbm1sIGJuPSJkZXYxMjMiIGJ0PSItNDUuNjciIGJ1PSJkZWdDIiBidmVyPSI1IiBuPSJ0ZW1wIiB1PSJkZWdDIiB0PSItMSIgdXQ9IjEwIiB2PSIyMi4xIiBzPSIwIj48L3Nlbm1sPjxzZW5tbCBuPSJyb29tIiB0PSItMSIgdnM9ImtpdGNoZW4iPjwvc2VubWw+PHNlbm1sIG49ImRhdGEiIHZkPSJhYmMiPjwvc2VubWw+PHNlbm1sIG49Im9rIiB2Yj0idHJ1ZSI+PC9zZW5tbD48L3NlbnNtbD4="},
 	{false, senml.CSV, false, "dGVtcCwyNTU2OC45OTk5ODgsMjIuMTAwMDAwLGRlZ0MNCg=="},
-	{true, senml.MPACK, true, "lIyhX8CiYm6mZGV2MTIzomJ0y8BG1cKPXCj2omJ1pGRlZ0OkYnZlcgWhbqR0ZW1woXPLAAAAAAAAAAChdMu/8AAAAAAAAKF1pGRlZ0OidXTLQCQAAAAAAAChdstANhmZmZmZmqJ2YsCHoV/AoW6kcm9vbaFzwKF0y7/wAAAAAAAAoXbAonZiwKJ2c6draXRjaGVuhqFfwKFupGRhdGGhc8ChdsCidmLAonZko2FiY4WhX8ChbqJva6FzwKF2wKJ2YsM="},
+	{true, senml.MPACK, true, "lIqiYm6mZGV2MTIzomJ0y8BG1cKPXCj2omJ1pGRlZ0OkYnZlcgWhbqR0ZW1woXPLAAAAAAAAAAChdMu/8AAAAAAAAKF1pGRlZ0OidXTLQCQAAAAAAAChdstANhmZmZmZmoOhbqRyb29toXTLv/AAAAAAAACidnOna2l0Y2hlboKhbqRkYXRhonZko2FiY4KhbqJva6J2YsM="},
 	{false, senml.LINEP, false, "Zmx1ZmZ5U2VubWwsbj10ZW1wLHU9ZGVnQyB2PTIyLjEscz0wIC0xMDAwMDAwMDAwCg=="},
 }
 
