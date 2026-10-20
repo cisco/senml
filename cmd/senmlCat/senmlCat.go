@@ -72,7 +72,7 @@ func outputData(data []byte) error {
 		defer resp.Body.Close()
 		body, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
-			fmt.Println("error reading response body: %v", err)
+			fmt.Printf("error reading response body: %v\n", err)
 			return err
 		}
 		if resp.StatusCode != 204 {
